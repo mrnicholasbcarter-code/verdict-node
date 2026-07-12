@@ -53,6 +53,38 @@ function createApp() {
 }
 
 describe("LLM Gate Node Router", () => {
+
+    it("instantiates gateway with default primary model when no argument is provided", () => {
+      const defaultGateway = new LlmGateNode();
+      expect((defaultGateway as any).primaryModel).toBe("anthropic/claude-3-opus-20240229");
+    });
+
+    it("handles missing req.body gracefully by falling back to empty object serialization", async () => {
+      const app = express();
+      const gateway = new LlmGateNode("custom/model-1");
+
+      // Intentionally omit express.json() to leave req.body undefined
+      app.post(
+        "/v1/chat/completions",
+        gateway.middleware(),
+        (req: Request & { llmRouter?: unknown }, res: Response) => {
+          res.status(200).json({ llmRouter: req.llmRouter });
+        }
+      );
+
+      const response = await request(app)
+        .post("/v1/chat/completions")
+        .type("json")
+        .send() // no body
+        .expect(200);
+
+      expect(response.body.llmRouter.decision).toMatchObject({
+         model: "groq/llama-3-8b",
+         provider: "groq",
+         tier: 2
+      });
+    });
+
   describe("Express middleware via supertest", () => {
     it("attaches validated tier-2 routing metadata for non-critical OpenAI calls", async () => {
       const response = await request(createApp())
@@ -85,6 +117,63 @@ describe("LLM Gate Node Router", () => {
         model: "anthropic/claude-3-opus-20240229",
         provider: "primary",
         tier: 0
+      });
+      expect(RoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
+    });
+
+    
+    it.each([
+      [
+        "circular reference",
+        (req: Request) => {
+          req.body = {};
+          req.body.self = req.body;
+        }
+      ],
+      [
+        "BigInt which has no default serialization",
+        (req: Request) => {
+          req.body = { value: BigInt(42) };
+        }
+      ],
+      [
+        "object with throwing getter",
+        (req: Request) => {
+          req.body = {};
+          Object.defineProperty(req.body, "prop", {
+            get: () => { throw new Error("Poisoned"); },
+            enumerable: true
+          });
+        }
+      ]
+    ])("falls back to primary model (fail-open strategy) for %s", async (_name, setupFn) => {
+      const app = express();
+      const gateway = new LlmGateNode("anthropic/claude-3-opus-20240229");
+
+      app.use(express.json());
+      app.use((req, res, next) => {
+        setupFn(req as Request);
+        next();
+      });
+
+      app.post(
+        "/v1/chat/completions",
+        gateway.middleware(),
+        (req: Request & { llmRouter?: unknown }, res: Response) => {
+          res.status(200).json({ llmRouter: req.llmRouter });
+        }
+      );
+
+      const response = await request(app)
+        .post("/v1/chat/completions")
+        .send({})
+        .expect(200);
+
+      expect(response.body.llmRouter.decision).toMatchObject({
+        model: "anthropic/claude-3-opus-20240229",
+        provider: "primary",
+        tier: 0,
+        reason: "Fail-open"
       });
       expect(RoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
     });
@@ -125,7 +214,15 @@ describe("LLM Gate Node Router", () => {
       ["max_tokens is float", { ...validRequest, max_tokens: 1.5 }],
       ["stream is string", { ...validRequest, stream: "false" }],
       ["user is empty", { ...validRequest, user: "" }],
-      ["unknown top-level key", { ...validRequest, logprobs: true }]
+      ["unknown top-level key", { ...validRequest, logprobs: true }],
+      ["prototype pollution via __proto__", JSON.parse('{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"__proto__":{"admin":true}}')],
+      ["constructor poisoning", { ...validRequest, constructor: { prototype: { admin: true } } }],
+      ["NoSQL injection in model", { ...validRequest, model: { "$gt": "" } }],
+      ["SQL injection attempt in messages (should normally pass unless strict schema prevents types, but if structured it fails)", { ...validRequest, messages: { "$where": "sleep(10)" } }],
+      ["deeply nested object for model", { ...validRequest, model: { a: { b: { c: "d" } } } }],
+      ["array with null prototype", Object.assign(Object.create(null), validRequest, { extras: true })],
+      ["function as user", { ...validRequest, user: function() {} }],
+
     ])("rejects incorrect OpenAI request JSON: %s", (_name, payload) => {
       const result = OpenAIChatCompletionRequestSchema.safeParse(payload);
 
@@ -157,7 +254,10 @@ describe("LLM Gate Node Router", () => {
       ["usage float completion tokens", { ...validResponse, usage: { ...validResponse.usage, completion_tokens: 1.25 } }],
       ["usage missing total tokens", { ...validResponse, usage: { prompt_tokens: 1, completion_tokens: 2 } }],
       ["usage extra field", { ...validResponse, usage: { ...validResponse.usage, cached_tokens: 1 } }],
-      ["unknown top-level key", { ...validResponse, system_fingerprint: "fp_test" }]
+      ["unknown top-level key", { ...validResponse, system_fingerprint: "fp_test" }],
+      ["prototype pollution in response", JSON.parse('{"id":"1","object":"chat.completion","created":1,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"__proto__":{"admin":true}}')],
+      ["function as choice index", { ...validResponse, choices: [{ ...validResponse.choices[0], index: function(){} }] }],
+
     ])("rejects incorrect OpenAI response JSON: %s", (_name, payload) => {
       const result = OpenAIChatCompletionResponseSchema.safeParse(payload);
 
