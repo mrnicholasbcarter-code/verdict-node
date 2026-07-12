@@ -5,12 +5,17 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "jest"
   },
   "dependencies": {
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "config": "^4.4.2",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.0.0"
   }
 }
