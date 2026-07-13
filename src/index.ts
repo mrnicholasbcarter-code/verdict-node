@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
-import { execSync } from 'child_process';
 
 /**
  * Zod Schema representing an OpenAI-compatible Chat Message.
@@ -89,7 +88,6 @@ export class LlmGateNode {
   private apiKey: string;
   private autoDetectorRan = false;
 
-  private connMapCache: { at: number; map: Record<string, string> } = { at: 0, map: {} };
   private usageCache: Record<string, { at: number; data: any }> = {};
   private modelsCache: { at: number; ids: string[] } = { at: 0, ids: [] };
 
@@ -103,9 +101,11 @@ export class LlmGateNode {
     const config =
       typeof configOrModel === 'string' ? { primaryModel: configOrModel } : configOrModel;
     this.primaryModel = config.primaryModel || 'cc/claude-opus-4-8';
-    this.baseUrl = config.baseUrl || 'http://localhost:20128/v1';
-    this.usageUrl = config.usageUrl || 'http://localhost:20128/api';
-    this.apiKey = config.apiKey || process.env.OPENAI_API_KEY || 'dummy';
+    this.baseUrl =
+      config.baseUrl || process.env.OMNIROUTE_BASE_URL || 'http://127.0.0.1:20132/v1';
+    this.usageUrl =
+      config.usageUrl || process.env.OMNIROUTE_API_BASE_URL || 'http://127.0.0.1:20132/api';
+    this.apiKey = config.apiKey || process.env.OMNIROUTE_API_KEY || process.env.OPENAI_API_KEY || '';
     this.autoDetectDependencies();
   }
 
@@ -133,31 +133,17 @@ export class LlmGateNode {
   }
 
   /**
-   * Maps 9router providers to Connection UUIDs from SQLite.
-   * @returns Key/value map of Provider -> Connection ID
+   * Returns configured provider connection IDs.
+   *
+   * The public package never reads private multiplexer databases. A future
+   * documented quota adapter may populate this map through an explicit API.
    */
   private getProviderConnIds(): Record<string, string> {
-    const now = Date.now();
-    if (Object.keys(this.connMapCache.map).length > 0 && now - this.connMapCache.at < 300000) {
-      return this.connMapCache.map;
-    }
-    try {
-      const sqliteCmd = `sqlite3 ~/.9router/db/data.sqlite "SELECT id, provider FROM providerConnections WHERE isActive=1;" -json`;
-      const out = execSync(sqliteCmd, { encoding: 'utf8', stdio: 'pipe' });
-      const rows = JSON.parse(out || '[]');
-      const map: Record<string, string> = {};
-      for (const row of rows) {
-        if (row.provider && row.id) map[row.provider] = row.id;
-      }
-      this.connMapCache = { at: now, map };
-      return map;
-    } catch (e) {
-      return this.connMapCache.map;
-    }
+    return {};
   }
 
   /**
-   * Fetches the /api/usage payload for a given provider natively via fetch.
+   * Fetches the configured upstream usage payload for a given provider natively via fetch.
    * @param provider The name string corresponding to the provider.
    * @returns Raw API quota data or null if unavailable / error.
    */
@@ -193,7 +179,7 @@ export class LlmGateNode {
   }
 
   /**
-   * Validates per-model quotas verifying exact active headspace limits remain available.
+   * Validates per-model headroom when a documented usage adapter is configured.
    * Fails open if data is missing.
    * @param modelId The canonical model name string.
    * @returns Boolean true if the model has valid quota OR if validation state is inconclusive.
@@ -224,7 +210,7 @@ export class LlmGateNode {
   }
 
   /**
-   * Automatically discovers the functional pool of models dynamically from 9router.
+   * Automatically discovers the functional pool of models from the configured OpenAI-compatible upstream.
    * @returns List of active valid model ids.
    */
   private async discoverModels(force: boolean = false): Promise<string[]> {
@@ -398,7 +384,7 @@ export class LlmGateNode {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.apiKey}`,
+              ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
             },
             body: JSON.stringify(payload),
           });
