@@ -44,7 +44,7 @@ export function validate<T>(input: ValidatorOptions<T> | ValidationSchema<T>) {
       try {
         const result = options.schema.body.safeParse(req.body);
         if (!result.success) {
-          errors.push(...result.error.errors.map(e => `body.${e.path.join('.')}: ${e.message}`));
+          errors.push(...result.error.errors.map((e: z.ZodIssue) => `body.${e.path.join('.')}: ${e.message}`));
         } else if (options.sanitize) {
           req.body = result.data;
         }
@@ -58,9 +58,9 @@ export function validate<T>(input: ValidatorOptions<T> | ValidationSchema<T>) {
       try {
         const result = options.schema.query.safeParse(req.query);
         if (!result.success) {
-          errors.push(...result.error.errors.map(e => `query.${e.path.join('.')}: ${e.message}`));
+          errors.push(...result.error.errors.map((e: z.ZodIssue) => `query.${e.path.join('.')}: ${e.message}`));
         } else if (options.sanitize) {
-          req.query = result.data;
+          req.query = result.data as any;
         }
       } catch (e) {
         errors.push(`query: validation error - ${e instanceof Error ? e.message : String(e)}`);
@@ -72,9 +72,9 @@ export function validate<T>(input: ValidatorOptions<T> | ValidationSchema<T>) {
       try {
         const result = options.schema.params.safeParse(req.params);
         if (!result.success) {
-          errors.push(...result.error.errors.map(e => `params.${e.path.join('.')}: ${e.message}`));
+          errors.push(...result.error.errors.map((e: z.ZodIssue) => `params.${e.path.join('.')}: ${e.message}`));
         } else if (options.sanitize) {
-          req.params = result.data;
+          req.params = result.data as any;
         }
       } catch (e) {
         errors.push(`params: validation error - ${e instanceof Error ? e.message : String(e)}`);
@@ -86,9 +86,9 @@ export function validate<T>(input: ValidatorOptions<T> | ValidationSchema<T>) {
       try {
         const result = options.schema.headers.safeParse(req.headers);
         if (!result.success) {
-          errors.push(...result.error.errors.map(e => `headers.${e.path.join('.')}: ${e.message}`));
+          errors.push(...result.error.errors.map((e: z.ZodIssue) => `headers.${e.path.join('.')}: ${e.message}`));
         } else if (options.sanitize) {
-          req.headers = result.data;
+          req.headers = result.data as any;
         }
       } catch (e) {
         errors.push(`headers: validation error - ${e instanceof Error ? e.message : String(e)}`);
