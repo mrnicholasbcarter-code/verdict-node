@@ -1,0 +1,27 @@
+# Development dependencies and source-only files
+node_modules/
+coverage/
+.nyc_output/
+tests/
+src/
+.github/
+
+# Local and generated artifacts
+*.tgz
+*.log
+*.tsbuildinfo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Development configuration
+jest.config.js
+.eslintrc.js
+.prettierrc
+.prettierignore
+.pre-commit-config.yaml
+tsconfig.json
+AGENTS.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
