@@ -58,6 +58,15 @@ describe('LLM Gate Node Router', () => {
     expect((defaultGateway as any).primaryModel).toBe('cc/claude-opus-4-8');
   });
 
+  it('uses the filtered OmniRoute defaults without inventing credentials', () => {
+    const defaultGateway = new LlmGateNode();
+    expect((defaultGateway as any).baseUrl).toBe('http://127.0.0.1:20132/v1');
+    expect((defaultGateway as any).usageUrl).toBe('http://127.0.0.1:20132/api');
+    expect((defaultGateway as any).apiKey).toBe(
+      process.env.OMNIROUTE_API_KEY || process.env.OPENAI_API_KEY || ''
+    );
+  });
+
   it('handles missing req.body gracefully by falling back to empty object serialization', async () => {
     const app = express();
     const gateway = new LlmGateNode('custom/model-1');
