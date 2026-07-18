@@ -2,87 +2,106 @@ import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
 
-const OpenAIFunctionCallSchema = z
-  .object({
+const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
+function addUnsafeKeyIssues(
+  value: unknown,
+  ctx: z.RefinementCtx,
+  path: Array<string | number> = []
+): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => addUnsafeKeyIssues(item, ctx, [...path, index]));
+    return;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    if (UNSAFE_OBJECT_KEYS.has(key)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unsafe key \"${key}\" is not allowed.`,
+        path: [...path, key],
+      });
+    }
+
+    addUnsafeKeyIssues(nestedValue, ctx, [...path, key]);
+  }
+}
+
+function safeObject<T extends z.ZodRawShape>(shape: T) {
+  return z.object(shape).passthrough().superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
+}
+
+const OpenAIFunctionCallSchema = safeObject({
     name: z.string().min(1),
     arguments: z.string(),
   })
-  .strict();
+  ;
 
-const OpenAIChatToolFunctionSchema = z
-  .object({
+const OpenAIChatToolFunctionSchema = safeObject({
     name: z.string().min(1),
     description: z.string().min(1).optional(),
     parameters: z.record(z.string(), z.unknown()).optional(),
     strict: z.boolean().optional(),
   })
-  .strict();
+  ;
 
-const OpenAIChatToolSchema = z
-  .object({
+const OpenAIChatToolSchema = safeObject({
     type: z.literal('function'),
     function: OpenAIChatToolFunctionSchema,
   })
-  .strict();
+  ;
 
-const OpenAIChatToolCallSchema = z
-  .object({
+const OpenAIChatToolCallSchema = safeObject({
     id: z.string().min(1),
     type: z.literal('function'),
     function: OpenAIFunctionCallSchema,
   })
-  .strict();
+  ;
 
 const OpenAIResponseFormatSchema = z.union([
-  z
-    .object({
-      type: z.literal('text'),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal('json_object'),
-    })
-    .strict(),
-  z
-    .object({
+  safeObject({
+    type: z.literal('text'),
+  }),
+  safeObject({
+    type: z.literal('json_object'),
+  }),
+  safeObject({
       type: z.literal('json_schema'),
-      json_schema: z
-        .object({
-          name: z.string().min(1),
-          description: z.string().min(1).optional(),
-          schema: z.record(z.string(), z.unknown()).optional(),
-          strict: z.boolean().optional(),
-        })
-        .strict(),
+      json_schema: safeObject({
+        name: z.string().min(1),
+        description: z.string().min(1).optional(),
+        schema: z.record(z.string(), z.unknown()).optional(),
+        strict: z.boolean().optional(),
+      }),
     })
-    .strict(),
+  ,
 ]);
 
 const OpenAILogitBiasSchema = z.record(z.string(), z.number());
 
-const OpenAIStreamOptionsSchema = z
-  .object({
+const OpenAIStreamOptionsSchema = safeObject({
     include_usage: z.boolean().optional(),
   })
-  .strict();
+  ;
 
-const OpenAIUsageSchema = z
-  .object({
+const OpenAIUsageSchema = safeObject({
     prompt_tokens: z.number().int().nonnegative(),
     completion_tokens: z.number().int().nonnegative(),
     total_tokens: z.number().int().nonnegative(),
     prompt_tokens_details: z.record(z.string(), z.number().int().nonnegative()).optional(),
     completion_tokens_details: z.record(z.string(), z.number().int().nonnegative()).optional(),
   })
-  .strict();
+  ;
 
-const OpenAILogprobsSchema = z
-  .object({
+const OpenAILogprobsSchema = safeObject({
     content: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
     refusal: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
   })
-  .strict();
+  ;
 
 /**
  * Zod Schema representing an OpenAI-compatible Chat Message.
@@ -97,7 +116,8 @@ export const OpenAIChatMessageSchema = z
     tool_calls: z.array(OpenAIChatToolCallSchema).min(1).optional(),
     refusal: z.union([z.string(), z.null()]).optional(),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 
 export const OpenAIChatCompletionRequestSchema = z
   .object({
@@ -136,7 +156,8 @@ export const OpenAIChatCompletionRequestSchema = z
     metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
     user: z.string().min(1).optional(),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 
 export const OpenAIChatCompletionChoiceSchema = z
   .object({
@@ -148,7 +169,8 @@ export const OpenAIChatCompletionChoiceSchema = z
       z.null(),
     ]),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 
 export const OpenAIChatCompletionResponseSchema = z
   .object({
@@ -161,7 +183,8 @@ export const OpenAIChatCompletionResponseSchema = z
     system_fingerprint: z.string().min(1).optional(),
     service_tier: z.string().min(1).optional(),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 
 export const OpenAIChatCompletionChunkChoiceSchema = z
   .object({
@@ -183,23 +206,27 @@ export const OpenAIChatCompletionChunkChoiceSchema = z
                     name: z.string().min(1).optional(),
                     arguments: z.string().optional(),
                   })
-                  .strict()
+                  .passthrough()
+                  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx))
                   .optional(),
               })
-              .strict()
+              .passthrough()
+              .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx))
           )
           .min(1)
           .optional(),
         refusal: z.union([z.string(), z.null()]).optional(),
       })
-      .strict(),
+      .passthrough()
+      .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx)),
     logprobs: OpenAILogprobsSchema.nullish(),
     finish_reason: z.union([
       z.enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call']),
       z.null(),
     ]),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 
 export const OpenAIChatCompletionChunkSchema = z
   .object({
@@ -212,7 +239,8 @@ export const OpenAIChatCompletionChunkSchema = z
     system_fingerprint: z.string().min(1).optional(),
     service_tier: z.string().min(1).optional(),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 
 export const RoutingDecisionSchema = z
   .object({
@@ -228,6 +256,24 @@ export type RoutingDecision = z.infer<typeof RoutingDecisionSchema>;
 export type OpenAIChatCompletionRequest = z.infer<typeof OpenAIChatCompletionRequestSchema>;
 export type OpenAIChatCompletionResponse = z.infer<typeof OpenAIChatCompletionResponseSchema>;
 export type OpenAIChatCompletionChunk = z.infer<typeof OpenAIChatCompletionChunkSchema>;
+
+export interface ProxyRequestLike {
+  body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
+  llmRouter?: { decision?: Partial<RoutingDecision> };
+}
+
+export interface ProxyResponseLike {
+  status(code: number): ProxyResponseLike;
+  json(payload: unknown): unknown;
+  setHeader(name: string, value: string | string[]): void;
+  write(chunk: Uint8Array | string): boolean;
+  end(chunk?: Uint8Array | string): void;
+  headersSent?: boolean;
+  flushHeaders?: () => void;
+}
+
+export type ProxyNextFunction = (error?: unknown) => void;
 
 export interface GatewayConfig {
   primaryModel?: string;
@@ -649,6 +695,137 @@ export class LlmGateNode {
     };
   }
 
+  private getRequestHeader(req: ProxyRequestLike, name: string): string | undefined {
+    const raw = req.headers?.[name] ?? req.headers?.[name.toLowerCase()];
+    if (Array.isArray(raw)) {
+      return raw.join(', ');
+    }
+    return typeof raw === 'string' ? raw : undefined;
+  }
+
+  private buildUpstreamHeaders(req: ProxyRequestLike): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`;
+    }
+
+    const accept = this.getRequestHeader(req, 'accept');
+    if (accept) {
+      headers.Accept = accept;
+    }
+
+    return headers;
+  }
+
+  private isRetryableStatus(status: number): boolean {
+    return status === 402 || status === 404 || status === 429;
+  }
+
+  private copyUpstreamHeaders(response: Response, res: ProxyResponseLike): void {
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+  }
+
+  private async forwardJsonResponse(response: Response, res: ProxyResponseLike): Promise<unknown> {
+    const payload = await response.json();
+    const parsed = OpenAIChatCompletionResponseSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      return res.status(502).json({
+        error: 'Upstream returned malformed chat completion JSON.',
+        details: parsed.error.issues,
+      });
+    }
+
+    return res.json(parsed.data);
+  }
+
+  private validateSseEventData(data: string): string | null {
+    const trimmed = data.trim();
+    if (trimmed.length === 0 || trimmed === '[DONE]') {
+      return null;
+    }
+
+    try {
+      const parsedJson = JSON.parse(trimmed);
+      const parsedChunk = OpenAIChatCompletionChunkSchema.safeParse(parsedJson);
+
+      if (!parsedChunk.success) {
+        throw parsedChunk.error;
+      }
+
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Unknown SSE validation error';
+    }
+  }
+
+  private async forwardSseResponse(response: Response, res: ProxyResponseLike): Promise<void> {
+    if (!response.body) {
+      res.end();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = '';
+
+    res.flushHeaders?.();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunkText = decoder.decode(value, { stream: true });
+      buffered += chunkText;
+
+      let boundary = buffered.indexOf('\n\n');
+      while (boundary !== -1) {
+        const eventText = buffered.slice(0, boundary);
+        const lines = eventText
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).trimStart());
+
+        if (lines.length > 0) {
+          const error = this.validateSseEventData(lines.join('\n'));
+          if (error) {
+            throw new Error(`Malformed upstream SSE chunk: ${error}`);
+          }
+        }
+
+        res.write(eventText + '\n\n');
+        buffered = buffered.slice(boundary + 2);
+        boundary = buffered.indexOf('\n\n');
+      }
+    }
+
+    buffered += decoder.decode();
+    if (buffered.length > 0) {
+      const lines = buffered
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart());
+
+      if (lines.length > 0) {
+        const error = this.validateSseEventData(lines.join('\n'));
+        if (error) {
+          throw new Error(`Malformed upstream SSE chunk: ${error}`);
+        }
+      }
+
+      res.write(buffered);
+    }
+
+    res.end();
+  }
+
   /**
    * End-to-end Proxy and Streaming wrapper.
    * Constructs the Dynamic Route Ladder, validates live availability usage logic sequentially,
@@ -656,28 +833,33 @@ export class LlmGateNode {
    * @returns Express Request Proxy Output Generator Context.
    */
   public proxy() {
-    return async (req: any, res: any, next: any) => {
-      const { decision } = req.llmRouter || { decision: { tier: 0 } };
+    return async (req: ProxyRequestLike, res: ProxyResponseLike, next: ProxyNextFunction) => {
+      const tier = req.llmRouter?.decision?.tier ?? 0;
+      const parsedRequest = OpenAIChatCompletionRequestSchema.safeParse(req.body ?? {});
 
-      const ladder = await this.buildDynamicLadder(decision.tier);
-      const isStream = req.body?.stream === true;
+      if (!parsedRequest.success) {
+        return res.status(400).json({
+          error: 'Invalid OpenAI chat completion request.',
+          details: parsedRequest.error.issues,
+        });
+      }
+
+      const ladder = await this.buildDynamicLadder(tier);
+      const requestBody = parsedRequest.data;
+      const isStream = requestBody.stream === true;
       let lastError = null;
 
       for (const candidateModel of ladder) {
-        let fetchStart = Date.now();
+        const fetchStart = Date.now();
         try {
-          const payload = { ...req.body, model: candidateModel };
-          // @ts-ignore
+          const payload = { ...requestBody, model: candidateModel };
           const response = await fetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
-            },
+            headers: this.buildUpstreamHeaders(req),
             body: JSON.stringify(payload),
           });
 
-          if (response.status === 402 || response.status === 429 || response.status === 404) {
+          if (this.isRetryableStatus(response.status)) {
             console.warn(
               `[LLM-Gate] Model ${candidateModel} flagged ${response.status}. Falling back...`
             );
@@ -688,24 +870,20 @@ export class LlmGateNode {
           }
 
           res.status(response.status);
-          response.headers.forEach((value, key) => res.setHeader(key, value));
+          this.copyUpstreamHeaders(response, res);
 
-          if (isStream && response.body) {
-            const reader = response.body.getReader();
-            const pump = async () => {
-              let done, value;
-              while ((({ done, value } = await reader.read()), !done)) {
-                res.write(value);
-              }
-              res.end();
-            };
-            pump().catch(next);
+          if (isStream) {
+            await this.forwardSseResponse(response, res);
             return;
           } else {
-            const data = await response.json();
-            return res.json(data);
+            return await this.forwardJsonResponse(response, res);
           }
         } catch (err) {
+          if (err instanceof Error && err.message.startsWith('Malformed upstream SSE chunk:')) {
+            next(err);
+            return;
+          }
+
           console.error(`[LLM-Gate] Network failure for ${candidateModel}:`, err);
           this.updateQScore(candidateModel, false, Date.now() - fetchStart);
           lastError = err;

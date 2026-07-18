@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
-import express, { Request, Response } from 'express';
+import express, { Request, Response as ExpressResponse } from 'express';
 import request from 'supertest';
 import {
   LlmGateNode,
   OpenAIChatCompletionChunkSchema,
   OpenAIChatCompletionRequestSchema,
   OpenAIChatCompletionResponseSchema,
+  ProxyRequestLike,
+  ProxyResponseLike,
   RoutingDecisionSchema,
 } from '../src';
 
@@ -62,6 +64,11 @@ const validRequest = {
   stream_options: { include_usage: true },
   metadata: { traceId: 'trace-1', retryCount: 0, cacheHit: false, note: null },
   user: 'agent-1',
+  store: true,
+  reasoning_effort: 'medium',
+  modalities: ['text'],
+  prediction: { type: 'content', content: 'Predicted summary' },
+  'x-forward-compatible': { future: true },
 };
 
 const validResponse = {
@@ -97,6 +104,7 @@ const validResponse = {
   },
   system_fingerprint: 'fp_123',
   service_tier: 'default',
+  'x-upstream-extra': { trace: 'abc123' },
 };
 
 afterEach(() => {
@@ -130,6 +138,7 @@ const validChunk = {
   usage: null,
   system_fingerprint: 'fp_123',
   service_tier: 'default',
+  'x-chunk-extra': { shard: 1 },
 };
 
 function createApp() {
@@ -140,7 +149,7 @@ function createApp() {
   app.post(
     '/v1/chat/completions',
     gateway.middleware(),
-    (req: Request & { llmRouter?: unknown }, res: Response) => {
+    (req: Request & { llmRouter?: unknown }, res: ExpressResponse) => {
       res.status(200).json({ llmRouter: req.llmRouter, body: req.body });
     }
   );
@@ -148,8 +157,274 @@ function createApp() {
   return app;
 }
 
-describe('LLM Gate Node Router', () => {
-  it('instantiates gateway with default primary model when no argument is provided', () => {
+describe('LlmGateNode', () => {
+  const createGatewayForProxyTests = () => {
+    const gateway = new LlmGateNode({ apiKey: 'secret-token' });
+    jest.spyOn(gateway as any, 'buildDynamicLadder').mockResolvedValue(['fallback-model']);
+    return gateway;
+  };
+
+  const createProxyResponseRecorder = (): {
+    res: ProxyResponseLike;
+    statusCode: number | null;
+    jsonPayload: unknown;
+    headers: Map<string, string | string[]>;
+    writes: Array<string | Uint8Array>;
+    ended: boolean;
+    flushHeaders: jest.Mock;
+  } => {
+    let statusCode: number | null = null;
+    let jsonPayload: unknown;
+    const headers = new Map<string, string | string[]>();
+    const writes: Array<string | Uint8Array> = [];
+    let ended = false;
+    const flushHeaders = jest.fn();
+
+    const res: ProxyResponseLike = {
+      status(code: number) {
+        statusCode = code;
+        return this;
+      },
+      json(payload: unknown) {
+        jsonPayload = payload;
+        return payload;
+      },
+      setHeader(name: string, value: string | string[]) {
+        headers.set(name, value);
+      },
+      write(chunk: Uint8Array | string) {
+        writes.push(chunk);
+        return true;
+      },
+      end(chunk?: Uint8Array | string) {
+        if (chunk !== undefined) {
+          writes.push(chunk);
+        }
+        ended = true;
+      },
+      flushHeaders,
+    };
+
+    return {
+      res,
+      get statusCode() {
+        return statusCode;
+      },
+      get jsonPayload() {
+        return jsonPayload;
+      },
+      headers,
+      writes,
+      get ended() {
+        return ended;
+      },
+      flushHeaders,
+    };
+  };
+
+  const createSseResponse = (
+    chunks: string[],
+    options?: { status?: number; headers?: Record<string, string> }
+  ): Response => {
+    const encoder = new TextEncoder();
+
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+          controller.close();
+        },
+      }),
+      {
+        status: options?.status ?? 200,
+        headers: options?.headers,
+      }
+    );
+  };
+
+  it('rejects malformed proxy requests before calling upstream', async () => {
+    const gateway = createGatewayForProxyTests();
+    const fetchSpy = jest.spyOn(globalThis, 'fetch');
+    const recorder = createProxyResponseRecorder();
+    const next = jest.fn();
+
+    await gateway.proxy()(
+      {
+        body: { messages: validRequest.messages },
+        llmRouter: { decision: { tier: 0 } },
+      } as ProxyRequestLike,
+      recorder.res,
+      next
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(recorder.statusCode).toBe(400);
+    expect(recorder.jsonPayload).toMatchObject({
+      error: 'Invalid OpenAI chat completion request.',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('forwards validated JSON responses with copied headers', async () => {
+    const gateway = createGatewayForProxyTests();
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(validResponse), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'x-upstream': 'ok',
+        },
+      })
+    );
+    const recorder = createProxyResponseRecorder();
+
+    await gateway.proxy()(
+      {
+        body: validRequest,
+        headers: { accept: 'application/json' },
+        llmRouter: { decision: { tier: 0 } },
+      } as ProxyRequestLike,
+      recorder.res,
+      jest.fn()
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith('http://127.0.0.1:20132/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer secret-token',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ ...validRequest, model: 'fallback-model' }),
+    });
+    expect(recorder.statusCode).toBe(200);
+    expect(recorder.headers.get('content-type')).toBe('application/json');
+    expect(recorder.headers.get('x-upstream')).toBe('ok');
+    expect(recorder.jsonPayload).toEqual(validResponse);
+  });
+
+  it('preserves unknown request fields while replacing only the routed model', async () => {
+    const gateway = createGatewayForProxyTests();
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(validResponse), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const recorder = createProxyResponseRecorder();
+
+    await gateway.proxy()(
+      {
+        body: { ...validRequest, model: 'client-requested-model' },
+        llmRouter: { decision: { tier: 0 } },
+      } as ProxyRequestLike,
+      recorder.res,
+      jest.fn()
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith('http://127.0.0.1:20132/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer secret-token',
+      },
+      body: JSON.stringify({ ...validRequest, model: 'fallback-model' }),
+    });
+  });
+
+  it('returns 502 when upstream JSON is malformed', async () => {
+    const gateway = createGatewayForProxyTests();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ nope: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const recorder = createProxyResponseRecorder();
+
+    await gateway.proxy()(
+      {
+        body: validRequest,
+        llmRouter: { decision: { tier: 0 } },
+      } as ProxyRequestLike,
+      recorder.res,
+      jest.fn()
+    );
+
+    expect(recorder.statusCode).toBe(502);
+    expect(recorder.jsonPayload).toMatchObject({
+      error: 'Upstream returned malformed chat completion JSON.',
+    });
+  });
+
+  it('streams validated SSE payloads while preserving framing across chunk boundaries', async () => {
+    const gateway = createGatewayForProxyTests();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      createSseResponse(
+        [
+          'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1720000000,',
+          '"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"Hel"},"logprobs":null,"finish_reason":null}]}\n\n',
+          'data: [DONE]\n\n',
+        ],
+        {
+          headers: {
+            'content-type': 'text/event-stream',
+            'cache-control': 'no-cache',
+          },
+        }
+      )
+    );
+    const recorder = createProxyResponseRecorder();
+
+    await gateway.proxy()(
+      {
+        body: { ...validRequest, stream: true },
+        headers: { accept: 'text/event-stream' },
+        llmRouter: { decision: { tier: 0 } },
+      } as ProxyRequestLike,
+      recorder.res,
+      jest.fn()
+    );
+
+    expect(recorder.statusCode).toBe(200);
+    expect(recorder.flushHeaders).toHaveBeenCalled();
+    expect(recorder.headers.get('content-type')).toBe('text/event-stream');
+    expect(recorder.headers.get('cache-control')).toBe('no-cache');
+    expect(recorder.ended).toBe(true);
+    expect(recorder.writes.map((chunk) => chunk.toString()).join('')).toBe(
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1720000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"Hel"},"logprobs":null,"finish_reason":null}]}\n\n' +
+        'data: [DONE]\n\n'
+    );
+  });
+
+  it('passes malformed SSE chunks to next and does not silently forward them', async () => {
+    const gateway = createGatewayForProxyTests();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      createSseResponse(['data: {"bad":true}\n\n'], {
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    );
+    const recorder = createProxyResponseRecorder();
+    const next = jest.fn();
+
+    await gateway.proxy()(
+      {
+        body: { ...validRequest, stream: true },
+        llmRouter: { decision: { tier: 0 } },
+      } as ProxyRequestLike,
+      recorder.res,
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    expect(String(next.mock.calls[0]?.[0])).toContain('Malformed upstream SSE chunk');
+    expect(recorder.writes).toEqual([]);
+  });
+
+  it('normalizes documented transport adapter defaults', () => {
     const defaultGateway = new LlmGateNode();
     expect((defaultGateway as any).primaryModel).toBe('cc/claude-opus-4-8');
   });
@@ -311,7 +586,7 @@ describe('LLM Gate Node Router', () => {
     app.post(
       '/v1/chat/completions',
       gateway.middleware(),
-      (req: Request & { llmRouter?: unknown }, res: Response) => {
+      (req: Request & { llmRouter?: unknown }, res: ExpressResponse) => {
         res.status(200).json({ llmRouter: req.llmRouter });
       }
     );
@@ -404,7 +679,7 @@ describe('LLM Gate Node Router', () => {
       app.post(
         '/v1/chat/completions',
         gateway.middleware(),
-        (req: Request & { llmRouter?: unknown }, res: Response) => {
+        (req: Request & { llmRouter?: unknown }, res: ExpressResponse) => {
           res.status(200).json({ llmRouter: req.llmRouter });
         }
       );
@@ -482,7 +757,6 @@ describe('LLM Gate Node Router', () => {
       ['metadata contains nested object', { ...validRequest, metadata: { trace: { id: 'bad' } } }],
       ['stream is string', { ...validRequest, stream: 'false' }],
       ['user is empty', { ...validRequest, user: '' }],
-      ['unknown top-level key', { ...validRequest, extra_field: true }],
       ['constructor poisoning', { ...validRequest, constructor: { prototype: { admin: true } } }],
       ['NoSQL injection in model', { ...validRequest, model: { $gt: '' } }],
       [
@@ -572,11 +846,6 @@ describe('LLM Gate Node Router', () => {
       ['system_fingerprint empty', { ...validResponse, system_fingerprint: '' }],
       ['service_tier empty', { ...validResponse, service_tier: '' }],
       [
-        'response extra key',
-        { ...validResponse, extra: true },
-      ],
-      ['unknown top-level key', { ...validResponse, unexpected_top_level: true }],
-      [
         'prototype pollution in response',
         JSON.parse(
           '{"id":"1","object":"chat.completion","created":1,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"__proto__":{"admin":true}}'
@@ -622,7 +891,7 @@ describe('LLM Gate Node Router', () => {
       ],
       ['finish_reason invalid', { ...validChunk, choices: [{ ...validChunk.choices[0], finish_reason: 'done' }] }],
       ['usage invalid', { ...validChunk, usage: { prompt_tokens: 1, completion_tokens: 1 } }],
-      ['unknown top-level key', { ...validChunk, extra: true }],
+      ['prototype pollution in chunk', JSON.parse('{"id":"chatcmpl-test","object":"chat.completion.chunk","created":1,"model":"gpt-4","choices":[],"__proto__":{"admin":true}}')],
     ])('rejects incorrect OpenAI chunk JSON: %s', (_name, payload) => {
       const result = OpenAIChatCompletionChunkSchema.safeParse(payload);
 
