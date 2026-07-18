@@ -10,12 +10,23 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20.x'
+          node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - name: Install OIDC-capable npm
+        run: npm install --global npm@11.18.0
       - run: npm ci
-      - run: npm run build
-      - run: npm publish --provenance --access public
+      - name: Verify release notes are present
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: test -n "$RELEASE_BODY"
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run verify:package
+      - name: Verify publish inventory without registry mutation
+        run: npm publish --dry-run --access public
+      - name: Publish through npm trusted publishing
+        run: npm publish --access public

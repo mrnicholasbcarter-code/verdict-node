@@ -5,7 +5,7 @@
   <p>
     <img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha" />
     <img src="https://img.shields.io/badge/typescript-strict-blue" alt="TypeScript strict" />
-    <img src="https://img.shields.io/badge/tests-98%20passing-blue" alt="Tests passing" />
+    <img src="https://img.shields.io/badge/tests-139%20passing-blue" alt="Tests passing" />
     <a href="https://github.com/mrnicholasbcarter-code/llm-gate-node/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT" /></a>
   </p>
 </div>
@@ -59,7 +59,14 @@ npm test -- --runInBand
 npm run build
 ```
 
-Publication evidence for the package boundary is gathered with `npm pack --dry-run`. Only the built runtime (`dist/**`) plus package metadata and top-level release documents (`README.md`, `LICENSE`, `CHANGELOG.md`) should ship. Development files, coverage, logs, tests, source, workflows, and generated tarballs must not ship.
+Publication evidence for the package boundary is gathered with
+`npm run verify:package`. The command builds and packs into a temporary
+directory, rejects unintended files, installs the tarball into a clean
+consumer, imports both public entry points, and type-checks the shipped
+declarations. Only the built runtime (`dist/**`) plus package metadata and
+top-level release documents (`README.md`, `LICENSE`, `CHANGELOG.md`) should
+ship. Development files, coverage, logs, tests, source, workflows, and
+generated tarballs must not ship.
 
 ## Quickstart
 
@@ -103,7 +110,17 @@ For local development, set `OMNIROUTE_BASE_URL` and `OMNIROUTE_API_KEY` explicit
 
 ## Verification
 
-The current baseline is 98 Jest tests and a passing TypeScript build. The release contract additionally requires:
+Run the local release boundary with:
+
+```bash
+npm ci
+npm run typecheck
+npm test -- --runInBand
+npm run verify:package
+```
+
+The current baseline is 139 Jest tests, a passing TypeScript build, and a clean
+consumer package smoke. The release contract additionally requires:
 
 - raw HTTP and OpenAI client compatibility tests;
 - non-streaming and arbitrary-boundary SSE fixtures;
@@ -111,6 +128,11 @@ The current baseline is 98 Jest tests and a passing TypeScript build. The releas
 - clean package installation outside the source tree;
 - security and dependency checks;
 - independent review of every public claim.
+
+Publishing remains blocked until the package owner configures npm Trusted
+Publishing for this repository and the exact workflow filename
+`npm-publish.yml`. The workflow uses GitHub OIDC and intentionally has no
+long-lived `NPM_TOKEN` fallback.
 
 ## Relationship to Python llm-gate
 

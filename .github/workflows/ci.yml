@@ -17,7 +17,11 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Check formatting
+        run: npm run format:check
       - name: Build
         run: npm run build
       - name: Test
         run: npm test
+      - name: Verify shipped package in a clean consumer
+        run: npm run verify:package
