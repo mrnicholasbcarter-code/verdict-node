@@ -2,15 +2,100 @@ import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
 
+const OpenAIFunctionCallSchema = z
+  .object({
+    name: z.string().min(1),
+    arguments: z.string(),
+  })
+  .strict();
+
+const OpenAIChatToolFunctionSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string().min(1).optional(),
+    parameters: z.record(z.string(), z.unknown()).optional(),
+    strict: z.boolean().optional(),
+  })
+  .strict();
+
+const OpenAIChatToolSchema = z
+  .object({
+    type: z.literal('function'),
+    function: OpenAIChatToolFunctionSchema,
+  })
+  .strict();
+
+const OpenAIChatToolCallSchema = z
+  .object({
+    id: z.string().min(1),
+    type: z.literal('function'),
+    function: OpenAIFunctionCallSchema,
+  })
+  .strict();
+
+const OpenAIResponseFormatSchema = z.union([
+  z
+    .object({
+      type: z.literal('text'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('json_object'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('json_schema'),
+      json_schema: z
+        .object({
+          name: z.string().min(1),
+          description: z.string().min(1).optional(),
+          schema: z.record(z.string(), z.unknown()).optional(),
+          strict: z.boolean().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+
+const OpenAILogitBiasSchema = z.record(z.string(), z.number());
+
+const OpenAIStreamOptionsSchema = z
+  .object({
+    include_usage: z.boolean().optional(),
+  })
+  .strict();
+
+const OpenAIUsageSchema = z
+  .object({
+    prompt_tokens: z.number().int().nonnegative(),
+    completion_tokens: z.number().int().nonnegative(),
+    total_tokens: z.number().int().nonnegative(),
+    prompt_tokens_details: z.record(z.string(), z.number().int().nonnegative()).optional(),
+    completion_tokens_details: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  })
+  .strict();
+
+const OpenAILogprobsSchema = z
+  .object({
+    content: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
+    refusal: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
+  })
+  .strict();
+
 /**
  * Zod Schema representing an OpenAI-compatible Chat Message.
  */
 export const OpenAIChatMessageSchema = z
   .object({
-    role: z.enum(['system', 'user', 'assistant', 'tool', 'function']),
+    role: z.enum(['developer', 'system', 'user', 'assistant', 'tool', 'function']),
     content: z.union([z.string(), z.null()]).optional(),
     name: z.string().min(1).optional(),
     tool_call_id: z.string().min(1).optional(),
+    function_call: OpenAIFunctionCallSchema.optional(),
+    tool_calls: z.array(OpenAIChatToolCallSchema).min(1).optional(),
+    refusal: z.union([z.string(), z.null()]).optional(),
   })
   .strict();
 
@@ -21,7 +106,34 @@ export const OpenAIChatCompletionRequestSchema = z
     temperature: z.number().min(0).max(2).optional(),
     top_p: z.number().min(0).max(1).optional(),
     max_tokens: z.number().int().positive().optional(),
+    max_completion_tokens: z.number().int().positive().optional(),
+    n: z.number().int().positive().optional(),
+    stop: z.union([z.string(), z.array(z.string()).min(1)]).optional(),
+    presence_penalty: z.number().min(-2).max(2).optional(),
+    frequency_penalty: z.number().min(-2).max(2).optional(),
+    logit_bias: OpenAILogitBiasSchema.optional(),
+    logprobs: z.boolean().optional(),
+    top_logprobs: z.number().int().min(0).max(20).optional(),
+    seed: z.number().int().optional(),
+    tools: z.array(OpenAIChatToolSchema).min(1).optional(),
+    tool_choice: z.union([
+      z.enum(['none', 'auto', 'required']),
+      z
+        .object({
+          type: z.literal('function'),
+          function: z
+            .object({
+              name: z.string().min(1),
+            })
+            .strict(),
+        })
+        .strict(),
+    ]).optional(),
+    parallel_tool_calls: z.boolean().optional(),
+    response_format: OpenAIResponseFormatSchema.optional(),
     stream: z.boolean().optional(),
+    stream_options: OpenAIStreamOptionsSchema.optional(),
+    metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
     user: z.string().min(1).optional(),
   })
   .strict();
@@ -30,6 +142,7 @@ export const OpenAIChatCompletionChoiceSchema = z
   .object({
     index: z.number().int().nonnegative(),
     message: OpenAIChatMessageSchema,
+    logprobs: OpenAILogprobsSchema.nullish(),
     finish_reason: z.union([
       z.enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call']),
       z.null(),
@@ -44,14 +157,60 @@ export const OpenAIChatCompletionResponseSchema = z
     created: z.number().int().nonnegative(),
     model: z.string().min(1),
     choices: z.array(OpenAIChatCompletionChoiceSchema).min(1),
-    usage: z
+    usage: OpenAIUsageSchema.optional(),
+    system_fingerprint: z.string().min(1).optional(),
+    service_tier: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const OpenAIChatCompletionChunkChoiceSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    delta: z
       .object({
-        prompt_tokens: z.number().int().nonnegative(),
-        completion_tokens: z.number().int().nonnegative(),
-        total_tokens: z.number().int().nonnegative(),
+        role: z.enum(['developer', 'system', 'user', 'assistant', 'tool', 'function']).optional(),
+        content: z.union([z.string(), z.null()]).optional(),
+        function_call: OpenAIFunctionCallSchema.optional(),
+        tool_calls: z
+          .array(
+            z
+              .object({
+                index: z.number().int().nonnegative().optional(),
+                id: z.string().min(1).optional(),
+                type: z.literal('function').optional(),
+                function: z
+                  .object({
+                    name: z.string().min(1).optional(),
+                    arguments: z.string().optional(),
+                  })
+                  .strict()
+                  .optional(),
+              })
+              .strict()
+          )
+          .min(1)
+          .optional(),
+        refusal: z.union([z.string(), z.null()]).optional(),
       })
-      .strict()
-      .optional(),
+      .strict(),
+    logprobs: OpenAILogprobsSchema.nullish(),
+    finish_reason: z.union([
+      z.enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call']),
+      z.null(),
+    ]),
+  })
+  .strict();
+
+export const OpenAIChatCompletionChunkSchema = z
+  .object({
+    id: z.string().min(1),
+    object: z.literal('chat.completion.chunk'),
+    created: z.number().int().nonnegative(),
+    model: z.string().min(1),
+    choices: z.array(OpenAIChatCompletionChunkChoiceSchema),
+    usage: OpenAIUsageSchema.nullish(),
+    system_fingerprint: z.string().min(1).optional(),
+    service_tier: z.string().min(1).optional(),
   })
   .strict();
 
@@ -68,12 +227,39 @@ export const RoutingDecisionSchema = z
 export type RoutingDecision = z.infer<typeof RoutingDecisionSchema>;
 export type OpenAIChatCompletionRequest = z.infer<typeof OpenAIChatCompletionRequestSchema>;
 export type OpenAIChatCompletionResponse = z.infer<typeof OpenAIChatCompletionResponseSchema>;
+export type OpenAIChatCompletionChunk = z.infer<typeof OpenAIChatCompletionChunkSchema>;
 
 export interface GatewayConfig {
   primaryModel?: string;
   baseUrl?: string;
   usageUrl?: string;
   apiKey?: string;
+  providerConnIds?: Record<string, string>;
+  transportAdapter?: TransportAdapterConfig;
+}
+
+export type TransportAdapterKind = 'openai-compatible' | 'omniroute-documented';
+
+export interface TransportAdapterConfig {
+  kind?: TransportAdapterKind;
+  modelListPath?: string;
+  usagePathTemplate?: string;
+  authHeader?: string;
+  authScheme?: string;
+  timeoutMs?: number;
+  modelCacheTtlMs?: number;
+  usageCacheTtlMs?: number;
+}
+
+interface NormalizedTransportAdapter {
+  kind: TransportAdapterKind;
+  modelListPath: string;
+  usagePathTemplate: string | null;
+  authHeader: string;
+  authScheme: string;
+  timeoutMs: number;
+  modelCacheTtlMs: number;
+  usageCacheTtlMs: number;
 }
 
 /**
@@ -86,6 +272,8 @@ export class LlmGateNode {
   private baseUrl: string;
   private usageUrl: string;
   private apiKey: string;
+  private providerConnIds: Record<string, string>;
+  private transportAdapter: NormalizedTransportAdapter;
   private autoDetectorRan = false;
 
   private usageCache: Record<string, { at: number; data: any }> = {};
@@ -106,7 +294,76 @@ export class LlmGateNode {
     this.usageUrl =
       config.usageUrl || process.env.OMNIROUTE_API_BASE_URL || 'http://127.0.0.1:20132/api';
     this.apiKey = config.apiKey || process.env.OMNIROUTE_API_KEY || process.env.OPENAI_API_KEY || '';
+    this.providerConnIds = config.providerConnIds || {};
+    this.transportAdapter = this.normalizeTransportAdapter(config.transportAdapter);
     this.autoDetectDependencies();
+  }
+
+  /**
+   * Normalizes the documented upstream transport adapter configuration.
+   */
+  private normalizeTransportAdapter(
+    config: TransportAdapterConfig | undefined
+  ): NormalizedTransportAdapter {
+    const kind = config?.kind || 'omniroute-documented';
+    if (kind === 'openai-compatible') {
+      return {
+        kind,
+        modelListPath: config?.modelListPath || '/models',
+        usagePathTemplate: config?.usagePathTemplate || null,
+        authHeader: config?.authHeader || 'Authorization',
+        authScheme: config?.authScheme || 'Bearer',
+        timeoutMs: config?.timeoutMs ?? 6000,
+        modelCacheTtlMs: config?.modelCacheTtlMs ?? 60000,
+        usageCacheTtlMs: config?.usageCacheTtlMs ?? 45000,
+      };
+    }
+
+    return {
+      kind,
+      modelListPath: config?.modelListPath || '/models',
+      usagePathTemplate: config?.usagePathTemplate || '/usage/{connectionId}',
+      authHeader: config?.authHeader || 'Authorization',
+      authScheme: config?.authScheme || 'Bearer',
+      timeoutMs: config?.timeoutMs ?? 6000,
+      modelCacheTtlMs: config?.modelCacheTtlMs ?? 60000,
+      usageCacheTtlMs: config?.usageCacheTtlMs ?? 45000,
+    };
+  }
+
+  /**
+   * Returns the configured adapter-specific authorization headers.
+   */
+  private buildAdapterHeaders(): Record<string, string> {
+    if (!this.apiKey) {
+      return {};
+    }
+
+    if (!this.transportAdapter.authScheme) {
+      return { [this.transportAdapter.authHeader]: this.apiKey };
+    }
+
+    return {
+      [this.transportAdapter.authHeader]: `${this.transportAdapter.authScheme} ${this.apiKey}`,
+    };
+  }
+
+  /**
+   * Fetches a JSON payload from a documented upstream adapter endpoint.
+   */
+  private async fetchAdapterJson(url: string): Promise<any | null> {
+    try {
+      const res = await fetch(url, {
+        headers: this.buildAdapterHeaders(),
+        signal: AbortSignal.timeout(this.transportAdapter.timeoutMs),
+      });
+      if (!res.ok) {
+        return null;
+      }
+      return await res.json();
+    } catch (_err) {
+      return null;
+    }
   }
 
   /**
@@ -139,7 +396,7 @@ export class LlmGateNode {
    * documented quota adapter may populate this map through an explicit API.
    */
   private getProviderConnIds(): Record<string, string> {
-    return {};
+    return this.providerConnIds;
   }
 
   /**
@@ -154,28 +411,32 @@ export class LlmGateNode {
 
     const now = Date.now();
     const ent = this.usageCache[provider];
-    if (ent && now - ent.at < 45000) return ent.data;
+    if (ent && now - ent.at < this.transportAdapter.usageCacheTtlMs) return ent.data;
 
-    try {
-      const res = await fetch(`${this.usageUrl}/usage/${cid}`, {
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) return null;
-      const data = (await res.json()) as any;
-      if (
-        data &&
-        data.message &&
-        typeof data.message === 'string' &&
-        data.message.toLowerCase().includes('not implemented')
-      ) {
-        return null; // Fail-open gracefully
-      }
-      this.usageCache[provider] = { at: now, data };
-      return data;
-    } catch (err) {
-      this.usageCache[provider] = { at: now, data: null };
+    if (
+      this.transportAdapter.kind !== 'omniroute-documented' ||
+      !this.transportAdapter.usagePathTemplate
+    ) {
       return null;
     }
+
+    const usagePath = this.transportAdapter.usagePathTemplate.replace('{connectionId}', cid);
+
+    const data = await this.fetchAdapterJson(`${this.usageUrl}${usagePath}`);
+    if (!data || typeof data !== 'object') {
+      return null;
+    }
+
+    if (
+      'message' in data &&
+      typeof data.message === 'string' &&
+      data.message.toLowerCase().includes('not implemented')
+    ) {
+      return null; // Fail-open gracefully
+    }
+
+    this.usageCache[provider] = { at: now, data };
+    return data;
   }
 
   /**
@@ -193,15 +454,30 @@ export class LlmGateNode {
     if (!data || !data.quotas) return true;
 
     const raw = parts.length > 1 ? parts[1].toLowerCase() : modelId.toLowerCase();
-    const stem = raw.replace('-thinking', '').replace('-preview', '').replace(/-/g, '');
+    const normalizeModelToken = (value: string): string =>
+      value
+        .toLowerCase()
+        .replace('-thinking', '')
+        .replace('-preview', '')
+        .replace(/[^a-z0-9]/g, '');
+    const stem = normalizeModelToken(raw);
 
     for (const [key, q] of Object.entries(data.quotas)) {
       if (!q || typeof q !== 'object') continue;
       const qObj = q as any;
-      const kl = key.toLowerCase();
-      const dn = (qObj.displayName || '').toLowerCase().replace(/ /g, '-');
+      const keyToken = normalizeModelToken(key);
+      const modelKeyToken = normalizeModelToken(String(qObj.modelKey || ''));
+      const displayNameToken = normalizeModelToken(String(qObj.displayName || ''));
 
-      if (stem && (kl.includes(stem) || raw.includes(kl) || dn.includes(stem))) {
+      if (
+        stem &&
+        (keyToken.includes(stem) ||
+          stem.includes(keyToken) ||
+          modelKeyToken.includes(stem) ||
+          stem.includes(modelKeyToken) ||
+          displayNameToken.includes(stem) ||
+          stem.includes(displayNameToken))
+      ) {
         if (qObj.unlimited) return true;
         return (qObj.remainingPercentage || 0) >= 1;
       }
@@ -213,28 +489,40 @@ export class LlmGateNode {
    * Automatically discovers the functional pool of models from the configured OpenAI-compatible upstream.
    * @returns List of active valid model ids.
    */
-  private async discoverModels(force: boolean = false): Promise<string[]> {
+  private async discoverCapabilities(force: boolean = false): Promise<string[]> {
     const now = Date.now();
-    if (!force && this.modelsCache.ids.length > 0 && now - this.modelsCache.at < 60000) {
+    if (
+      !force &&
+      this.modelsCache.ids.length > 0 &&
+      now - this.modelsCache.at < this.transportAdapter.modelCacheTtlMs
+    ) {
       return this.modelsCache.ids;
     }
-    try {
-      const res = await fetch(`${this.baseUrl}/models`, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) return this.modelsCache.ids;
-      const data = (await res.json()) as any;
-      const ids: string[] = [];
-      if (data && Array.isArray(data.data)) {
-        for (const item of data.data) {
-          if (item && item.id) ids.push(item.id);
-        }
-      }
-      if (ids.length > 0) {
-        this.modelsCache = { at: now, ids };
-      }
-      return ids.length > 0 ? ids : this.modelsCache.ids;
-    } catch (e) {
+    const data = await this.fetchAdapterJson(
+      `${this.baseUrl}${this.transportAdapter.modelListPath}`
+    );
+    if (!data || !Array.isArray(data.data)) {
       return this.modelsCache.ids;
     }
+
+    const ids: string[] = [];
+    for (const item of data.data) {
+      if (item && typeof item.id === 'string' && item.id.length > 0) {
+        ids.push(item.id);
+      }
+    }
+
+    if (ids.length > 0) {
+      this.modelsCache = { at: now, ids };
+    }
+    return ids.length > 0 ? ids : this.modelsCache.ids;
+  }
+
+  /**
+   * Backward-compatible model discovery alias.
+   */
+  private async discoverModels(force: boolean = false): Promise<string[]> {
+    return this.discoverCapabilities(force);
   }
 
   /**

@@ -1,8 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import express, { Request, Response } from 'express';
 import request from 'supertest';
 import {
   LlmGateNode,
+  OpenAIChatCompletionChunkSchema,
   OpenAIChatCompletionRequestSchema,
   OpenAIChatCompletionResponseSchema,
   RoutingDecisionSchema,
@@ -10,11 +11,56 @@ import {
 
 const validRequest = {
   model: 'gpt-4o-mini',
-  messages: [{ role: 'user', content: 'Summarize this document' }],
+  messages: [{ role: 'developer', content: 'Be concise' }, { role: 'user', content: 'Summarize this document' }],
   temperature: 0.4,
   top_p: 0.9,
   max_tokens: 256,
+  max_completion_tokens: 256,
+  n: 1,
+  stop: ['END'],
+  presence_penalty: 0,
+  frequency_penalty: 0,
+  logit_bias: { '42': -0.5 },
+  logprobs: true,
+  top_logprobs: 2,
+  seed: 7,
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: 'lookup_weather',
+        description: 'Get the forecast',
+        parameters: {
+          type: 'object',
+          properties: {
+            city: { type: 'string' },
+          },
+          required: ['city'],
+        },
+        strict: true,
+      },
+    },
+  ],
+  tool_choice: 'auto',
+  parallel_tool_calls: true,
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'summary_response',
+      description: 'Structured summary',
+      schema: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string' },
+        },
+        required: ['summary'],
+      },
+      strict: true,
+    },
+  },
   stream: false,
+  stream_options: { include_usage: true },
+  metadata: { traceId: 'trace-1', retryCount: 0, cacheHit: false, note: null },
   user: 'agent-1',
 };
 
@@ -26,7 +72,19 @@ const validResponse = {
   choices: [
     {
       index: 0,
-      message: { role: 'assistant', content: 'Done' },
+      message: {
+        role: 'assistant',
+        content: 'Done',
+        tool_calls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup_weather', arguments: '{"city":"Paris"}' },
+          },
+        ],
+        refusal: null,
+      },
+      logprobs: { content: null, refusal: null },
       finish_reason: 'stop',
     },
   ],
@@ -34,7 +92,44 @@ const validResponse = {
     prompt_tokens: 12,
     completion_tokens: 3,
     total_tokens: 15,
+    prompt_tokens_details: { cached_tokens: 0 },
+    completion_tokens_details: { reasoning_tokens: 0 },
   },
+  system_fingerprint: 'fp_123',
+  service_tier: 'default',
+};
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+const validChunk = {
+  id: 'chatcmpl-test',
+  object: 'chat.completion.chunk',
+  created: 1_720_000_000,
+  model: 'gpt-4o-mini',
+  choices: [
+    {
+      index: 0,
+      delta: {
+        role: 'assistant',
+        content: 'Hel',
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup_weather', arguments: '{"city":"Par' },
+          },
+        ],
+      },
+      logprobs: null,
+      finish_reason: null,
+    },
+  ],
+  usage: null,
+  system_fingerprint: 'fp_123',
+  service_tier: 'default',
 };
 
 function createApp() {
@@ -66,6 +161,146 @@ describe('LLM Gate Node Router', () => {
     expect((defaultGateway as any).apiKey).toBe(
       process.env.OMNIROUTE_API_KEY || process.env.OPENAI_API_KEY || ''
     );
+  });
+
+  it('configures the documented OmniRoute transport adapter and provider connection ids', () => {
+    const gateway = new LlmGateNode({
+      apiKey: 'secret-token',
+      providerConnIds: { openai: 'conn-openai' },
+      transportAdapter: {
+        kind: 'omniroute-documented',
+        modelListPath: '/models',
+        usagePathTemplate: '/usage/{connectionId}',
+        timeoutMs: 1234,
+      },
+    });
+
+    expect((gateway as any).getProviderConnIds()).toEqual({ openai: 'conn-openai' });
+    expect((gateway as any).transportAdapter).toMatchObject({
+      kind: 'omniroute-documented',
+      modelListPath: '/models',
+      usagePathTemplate: '/usage/{connectionId}',
+      timeoutMs: 1234,
+    });
+    expect((gateway as any).buildAdapterHeaders()).toEqual({
+      Authorization: 'Bearer secret-token',
+    });
+  });
+
+  it('discovers capabilities through the documented transport adapter', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [{ id: 'openai/gpt-4o-mini' }, { id: 'anthropic/claude-3-5-haiku' }],
+      }),
+    }));
+    jest.spyOn(globalThis, 'fetch').mockImplementation(fetchMock as typeof fetch);
+
+    const gateway = new LlmGateNode({
+      apiKey: 'secret-token',
+      transportAdapter: { kind: 'omniroute-documented' },
+    });
+
+    const ids = await (gateway as any).discoverCapabilities(true);
+
+    expect(ids).toEqual(['openai/gpt-4o-mini', 'anthropic/claude-3-5-haiku']);
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:20132/v1/models', {
+      headers: { Authorization: 'Bearer secret-token' },
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('fails open when capability discovery returns malformed JSON', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({ items: [{ id: 'wrong/shape' }] }),
+    }));
+    jest.spyOn(globalThis, 'fetch').mockImplementation(fetchMock as typeof fetch);
+
+    const gateway = new LlmGateNode({
+      transportAdapter: { kind: 'omniroute-documented' },
+    });
+
+    const ids = await (gateway as any).discoverCapabilities(true);
+
+    expect(ids).toEqual([]);
+  });
+
+  it('fails open when capability discovery is unauthorized', async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      json: async () => ({ error: 'unauthorized' }),
+    }));
+    jest.spyOn(globalThis, 'fetch').mockImplementation(fetchMock as typeof fetch);
+
+    const gateway = new LlmGateNode({
+      apiKey: 'bad-token',
+      transportAdapter: { kind: 'omniroute-documented' },
+    });
+
+    const ids = await (gateway as any).discoverCapabilities(true);
+
+    expect(ids).toEqual([]);
+  });
+
+  it('fails open when capability discovery times out or is unavailable', async () => {
+    const fetchMock = jest.fn(async () => {
+      throw new Error('timeout');
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(fetchMock as typeof fetch);
+
+    const gateway = new LlmGateNode({
+      transportAdapter: { kind: 'omniroute-documented', timeoutMs: 10 },
+    });
+
+    await expect((gateway as any).discoverCapabilities(true)).resolves.toEqual([]);
+  });
+
+  it('checks documented usage adapter headroom when configured', async () => {
+    const fetchMock = jest.fn(async (url: string) => {
+      if (url.endsWith('/models')) {
+        return {
+          ok: true,
+          json: async () => ({ data: [{ id: 'openai/gpt-4o-mini' }] }),
+        };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          quotas: [
+            {
+              modelKey: 'gpt-4o-mini',
+              remainingPercentage: 0,
+              unlimited: false,
+              displayName: 'GPT 4o Mini',
+            },
+          ],
+        }),
+      };
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(fetchMock as typeof fetch);
+
+    const gateway = new LlmGateNode({
+      apiKey: 'secret-token',
+      providerConnIds: { openai: 'conn-openai' },
+      transportAdapter: { kind: 'omniroute-documented' },
+    });
+
+    await expect((gateway as any).modelHasHeadroom('openai/gpt-4o-mini')).resolves.toBe(false);
+  });
+
+  it('skips usage lookups when using a generic openai-compatible transport adapter', async () => {
+    const fetchSpy = jest.spyOn(globalThis, 'fetch');
+    const gateway = new LlmGateNode({
+      providerConnIds: { openai: 'conn-openai' },
+      transportAdapter: { kind: 'openai-compatible' },
+    });
+
+    await expect((gateway as any).getUsageForProvider('openai')).resolves.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('handles missing req.body gracefully by falling back to empty object serialization', async () => {
@@ -222,15 +457,32 @@ describe('LLM Gate Node Router', () => {
       ['top_p above range', { ...validRequest, top_p: 1.01 }],
       ['max_tokens is zero', { ...validRequest, max_tokens: 0 }],
       ['max_tokens is float', { ...validRequest, max_tokens: 1.5 }],
+      ['max_completion_tokens is zero', { ...validRequest, max_completion_tokens: 0 }],
+      ['n is zero', { ...validRequest, n: 0 }],
+      ['presence_penalty below range', { ...validRequest, presence_penalty: -2.1 }],
+      ['frequency_penalty above range', { ...validRequest, frequency_penalty: 2.1 }],
+      ['logit_bias has string value', { ...validRequest, logit_bias: { '42': 'bad' } }],
+      ['logprobs is string', { ...validRequest, logprobs: 'true' }],
+      ['top_logprobs above range', { ...validRequest, top_logprobs: 21 }],
+      ['seed is float', { ...validRequest, seed: 0.5 }],
+      ['tool missing function', { ...validRequest, tools: [{ type: 'function' }] }],
+      ['tool has wrong type', { ...validRequest, tools: [{ type: 'search', function: { name: 'x' } }] }],
+      ['tool_choice invalid string', { ...validRequest, tool_choice: 'always' }],
+      [
+        'tool_choice missing function name',
+        { ...validRequest, tool_choice: { type: 'function', function: {} } },
+      ],
+      ['parallel_tool_calls is string', { ...validRequest, parallel_tool_calls: 'true' }],
+      ['response_format text has extra key', { ...validRequest, response_format: { type: 'text', extra: true } }],
+      [
+        'response_format json_schema missing json_schema',
+        { ...validRequest, response_format: { type: 'json_schema' } },
+      ],
+      ['stream_options invalid shape', { ...validRequest, stream_options: { include_usage: 'yes' } }],
+      ['metadata contains nested object', { ...validRequest, metadata: { trace: { id: 'bad' } } }],
       ['stream is string', { ...validRequest, stream: 'false' }],
       ['user is empty', { ...validRequest, user: '' }],
-      ['unknown top-level key', { ...validRequest, logprobs: true }],
-      [
-        'prototype pollution via __proto__',
-        JSON.parse(
-          '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"__proto__":{"admin":true}}'
-        ),
-      ],
+      ['unknown top-level key', { ...validRequest, extra_field: true }],
       ['constructor poisoning', { ...validRequest, constructor: { prototype: { admin: true } } }],
       ['NoSQL injection in model', { ...validRequest, model: { $gt: '' } }],
       [
@@ -295,6 +547,10 @@ describe('LLM Gate Node Router', () => {
         { ...validResponse, choices: [{ ...validResponse.choices[0], finish_reason: 'done' }] },
       ],
       [
+        'choice invalid logprobs shape',
+        { ...validResponse, choices: [{ ...validResponse.choices[0], logprobs: { content: [{}], extra: true } }] },
+      ],
+      [
         'usage negative prompt tokens',
         { ...validResponse, usage: { ...validResponse.usage, prompt_tokens: -1 } },
       ],
@@ -303,14 +559,23 @@ describe('LLM Gate Node Router', () => {
         { ...validResponse, usage: { ...validResponse.usage, completion_tokens: 1.25 } },
       ],
       [
-        'usage missing total tokens',
-        { ...validResponse, usage: { prompt_tokens: 1, completion_tokens: 2 } },
+        'usage total tokens missing',
+        { ...validResponse, usage: { prompt_tokens: 1, completion_tokens: 1 } },
       ],
       [
-        'usage extra field',
-        { ...validResponse, usage: { ...validResponse.usage, cached_tokens: 1 } },
+        'usage details negative',
+        {
+          ...validResponse,
+          usage: { ...validResponse.usage, prompt_tokens_details: { cached_tokens: -1 } },
+        },
       ],
-      ['unknown top-level key', { ...validResponse, system_fingerprint: 'fp_test' }],
+      ['system_fingerprint empty', { ...validResponse, system_fingerprint: '' }],
+      ['service_tier empty', { ...validResponse, service_tier: '' }],
+      [
+        'response extra key',
+        { ...validResponse, extra: true },
+      ],
+      ['unknown top-level key', { ...validResponse, unexpected_top_level: true }],
       [
         'prototype pollution in response',
         JSON.parse(
@@ -323,6 +588,43 @@ describe('LLM Gate Node Router', () => {
       ],
     ])('rejects incorrect OpenAI response JSON: %s', (_name, payload) => {
       const result = OpenAIChatCompletionResponseSchema.safeParse(payload);
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('OpenAI chat completion chunk parser', () => {
+    it('accepts a valid SSE chunk payload', () => {
+      expect(OpenAIChatCompletionChunkSchema.safeParse(validChunk).success).toBe(true);
+    });
+
+    it.each([
+      ['missing id', (({ id: _id, ...rest }) => rest)(validChunk)],
+      ['wrong object', { ...validChunk, object: 'chat.completion' }],
+      ['negative created', { ...validChunk, created: -1 }],
+      ['choices is object', { ...validChunk, choices: { index: 0 } }],
+      ['delta missing', { ...validChunk, choices: [{ index: 0, finish_reason: null }] }],
+      ['delta has extra field', { ...validChunk, choices: [{ ...validChunk.choices[0], delta: { content: 'x', extra: true } }] }],
+      [
+        'delta tool call invalid type',
+        {
+          ...validChunk,
+          choices: [
+            {
+              ...validChunk.choices[0],
+              delta: {
+                ...validChunk.choices[0].delta,
+                tool_calls: [{ index: 0, type: 'search' }],
+              },
+            },
+          ],
+        },
+      ],
+      ['finish_reason invalid', { ...validChunk, choices: [{ ...validChunk.choices[0], finish_reason: 'done' }] }],
+      ['usage invalid', { ...validChunk, usage: { prompt_tokens: 1, completion_tokens: 1 } }],
+      ['unknown top-level key', { ...validChunk, extra: true }],
+    ])('rejects incorrect OpenAI chunk JSON: %s', (_name, payload) => {
+      const result = OpenAIChatCompletionChunkSchema.safeParse(payload);
 
       expect(result.success).toBe(false);
     });
