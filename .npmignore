@@ -21,6 +21,7 @@ jest.config.js
 .prettierignore
 .pre-commit-config.yaml
 tsconfig.json
+tsconfig.test.json
 AGENTS.md
 CONTRIBUTING.md
 CODE_OF_CONDUCT.md

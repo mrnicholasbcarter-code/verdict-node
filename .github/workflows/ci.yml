@@ -1,18 +1,23 @@
-name: CI
+name: Clean Install CI
 on:
   push:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
 jobs:
-  test:
+  clean-install:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - name: Run tests
-        run: |
-          if [ -f package.json ]; then
-            npm ci && npm test
-          elif [ -f pyproject.toml ]; then
-            python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]" && pytest
-          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      - name: Install dependencies from lockfile
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test
