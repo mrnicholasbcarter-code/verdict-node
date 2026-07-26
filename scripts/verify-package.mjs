@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
-const packageName = '@verdict/node';
+const packageName = '@bodanglin/verdict-node';
 const allowedTopLevel = new Set(['CHANGELOG.md', 'LICENSE', 'README.md', 'dist', 'package.json']);
 const requiredFiles = new Set([
   'CHANGELOG.md',
@@ -155,7 +155,7 @@ void validate;
 
   const installedPackage = JSON.parse(
     readFileSync(
-      join(consumerDirectory, 'node_modules', '@verdict', 'node', 'package.json'),
+      join(consumerDirectory, 'node_modules', '@bodanglin', 'verdict-node', 'package.json'),
       'utf8'
     )
   );

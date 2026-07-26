@@ -8,7 +8,7 @@ import {
   OpenAIChatCompletionResponseSchema,
   ProxyRequestLike,
   ProxyResponseLike,
-  RoutingDecisionSchema,
+  MiddlewareRoutingDecisionSchema,
 } from '../src';
 
 const validRequest = {
@@ -621,7 +621,7 @@ describe('LlmGateNode', () => {
         tier: 3,
         reason: 'Evaluated dynamically to Tier 3',
       });
-      expect(RoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
+      expect(MiddlewareRoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
     });
 
     it.each([
@@ -640,7 +640,7 @@ describe('LlmGateNode', () => {
         provider: 'primary',
         tier: 0,
       });
-      expect(RoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
+      expect(MiddlewareRoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
     });
 
     it.each([
@@ -695,7 +695,7 @@ describe('LlmGateNode', () => {
         tier: 0,
         reason: 'Fail-open',
       });
-      expect(RoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
+      expect(MiddlewareRoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success).toBe(true);
     });
 
     it('returns a JSON parse error before middleware execution for malformed JSON', async () => {
