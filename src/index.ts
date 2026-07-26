@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
+import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
+import { adaptRoutingDecision, createFallbackRoutingDecision, extractRuntimeId } from './adapters/contract-to-middleware.js';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -302,7 +304,7 @@ export const OpenAIChatCompletionChunkSchema = guardRawInput(
     .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx))
 );
 
-export const RoutingDecisionSchema = z
+export const MiddlewareRoutingDecisionSchema = z
   .object({
     model: z.string().min(1),
     provider: z.string().min(1),
@@ -312,7 +314,12 @@ export const RoutingDecisionSchema = z
   })
   .strict();
 
-export type RoutingDecision = z.infer<typeof RoutingDecisionSchema>;
+/**
+ * Canonical RoutingDecision from @bodanglin/verdict-contracts
+ * Re-exported for compatibility
+ */
+export type RoutingDecision = CanonicalRoutingDecision;
+export type MiddlewareRoutingDecision = z.infer<typeof MiddlewareRoutingDecisionSchema>;
 export type OpenAIChatCompletionRequest = z.infer<typeof OpenAIChatCompletionRequestSchema>;
 export type OpenAIChatCompletionResponse = z.infer<typeof OpenAIChatCompletionResponseSchema>;
 export type OpenAIChatCompletionChunk = z.infer<typeof OpenAIChatCompletionChunkSchema>;
@@ -320,7 +327,7 @@ export type OpenAIChatCompletionChunk = z.infer<typeof OpenAIChatCompletionChunk
 export interface ProxyRequestLike {
   body?: unknown;
   headers?: Record<string, string | string[] | undefined>;
-  llmRouter?: { decision?: Partial<RoutingDecision> };
+  llmRouter?: { decision?: Partial<MiddlewareRoutingDecision> };
 }
 
 export interface ProxyResponseLike {

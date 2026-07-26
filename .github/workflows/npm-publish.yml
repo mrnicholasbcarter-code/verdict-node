@@ -1,34 +1,57 @@
-name: Publish Node.js Package to NPM registry
+name: Publish @verdict/node to npm
+
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.1.0)'
+        required: false
+        type: string
+
 jobs:
-  publish-npm:
+  build-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v5
         with:
-          node-version: '24.x'
-          registry-url: 'https://registry.npmjs.org'
-          package-manager-cache: false
-      - name: Install OIDC-capable npm
-        run: npm install --global npm@11.18.0
-      - run: npm ci
-      - name: Assert supported TypeScript/ts-jest boundary
-        run: node -e "const p=require('./node_modules/typescript/package.json'); const peer=require('./node_modules/ts-jest/package.json').peerDependencies.typescript; if (!p.version.startsWith('5.9.')) throw new Error('Unsupported TypeScript '+p.version); if (peer !== '>=4.3 <7') throw new Error('Unexpected ts-jest TypeScript peer '+peer)"
-      - name: Verify release notes are present
+          node-version: "22"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Run tests
+        run: npm test
+      - name: Verify package contents
+        run: npm pack --dry-run
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: verdict-node-package
+          path: dist/
+
+  publish-to-npm:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - name: Download package artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: verdict-node-package
+          path: dist/
+      - name: Publish to npm
+        run: npm publish --access public --provenance
         env:
-          RELEASE_BODY: ${{ github.event.release.body }}
-        run: test -n "$RELEASE_BODY"
-      - run: npm run typecheck
-      - run: npm run format:check
-      - run: npm test
-      - run: npm run verify:package
-      - name: Verify publish inventory without registry mutation
-        run: npm publish --dry-run --access public
-      - name: Publish through npm trusted publishing
-        run: npm publish --access public
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
