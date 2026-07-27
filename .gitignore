@@ -19,3 +19,17 @@ patch_*.py
 .env
 .DS_Store
 node_build.log
+
+# Codex local configuration
+.codex/
+
+# Claude Flow runtime data
+.claude-flow/data/
+.claude-flow/logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+CLAUDE.local.md
