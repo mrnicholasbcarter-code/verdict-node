@@ -704,6 +704,90 @@ describe('LlmGateNode', () => {
       ).toBe(true);
     });
 
+    it('uses a configured core canonical routing decision', async () => {
+      const coreDecision = {
+        selected_route: {
+          runtime_id: 'openai/gpt-4o-mini',
+          availability: 'healthy',
+          decision: 'routed',
+          latency_ms: 12,
+        },
+        policy_floor: 'standard',
+        explanation: 'core approved',
+        schema_version: '1',
+      };
+      jest
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify(coreDecision), { status: 200 }));
+      const app = express();
+      const gateway = new LlmGateNode({ decisionEndpoint: 'http://core/decide' });
+
+      app.use(express.json());
+      app.post(
+        '/v1/chat/completions',
+        gateway.middleware(),
+        (req: Request & { llmRouter?: unknown }, res: ExpressResponse) => {
+          res.status(200).json({ llmRouter: req.llmRouter });
+        }
+      );
+
+      const response = await request(app)
+        .post('/v1/chat/completions')
+        .send(validRequest)
+        .expect(200);
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('http://core/decide', expect.any(Object));
+      expect(response.body.llmRouter.decision).toMatchObject({
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        tier: 2,
+        reason: 'core approved',
+      });
+      expect(
+        MiddlewareRoutingDecisionSchema.safeParse(response.body.llmRouter.decision).success
+      ).toBe(true);
+    });
+
+    it.each([
+      ['unavailable endpoint', Promise.resolve(new Response('nope', { status: 503 }))],
+      [
+        'denied decision',
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              selected_route: { runtime_id: 'openai/gpt-4o-mini', decision: 'denied' },
+              schema_version: '1',
+            }),
+            { status: 200 }
+          )
+        ),
+      ],
+      ['malformed decision', Promise.resolve(new Response(JSON.stringify({ nope: true })))],
+      ['network failure', () => Promise.reject(new Error('down'))],
+    ])('fails closed with 503 when core decision is %s', async (_name, fetchResult) => {
+      jest
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(() =>
+          typeof fetchResult === 'function'
+            ? (fetchResult() as Promise<Response>)
+            : (fetchResult as Promise<Response>)
+        );
+      const app = express();
+      const gateway = new LlmGateNode({ decisionEndpoint: 'http://core/decide' });
+
+      app.use(express.json());
+      app.post('/v1/chat/completions', gateway.middleware(), (_req, res) => {
+        res.status(200).json({ reached: true });
+      });
+
+      const response = await request(app)
+        .post('/v1/chat/completions')
+        .send(validRequest)
+        .expect(503);
+
+      expect(response.body).toEqual({ error: 'Routing decision unavailable or denied.' });
+    });
+
     it('returns a JSON parse error before middleware execution for malformed JSON', async () => {
       const response = await request(createApp())
         .post('/v1/chat/completions')

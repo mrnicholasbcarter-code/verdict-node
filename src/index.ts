@@ -2,11 +2,7 @@ import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
-import {
-  adaptRoutingDecision,
-  createFallbackRoutingDecision,
-  extractRuntimeId,
-} from './adapters/contract-to-middleware.js';
+import { adaptRoutingDecision } from './adapters/contract-to-middleware';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -353,6 +349,8 @@ export interface GatewayConfig {
   apiKey?: string;
   providerConnIds?: Record<string, string>;
   transportAdapter?: TransportAdapterConfig;
+  decisionEndpoint?: string;
+  decisionTimeoutMs?: number;
 }
 
 export type TransportAdapterKind = 'openai-compatible' | 'omniroute-documented';
@@ -391,6 +389,8 @@ export class LlmGateNode {
   private apiKey: string;
   private providerConnIds: Record<string, string>;
   private transportAdapter: NormalizedTransportAdapter;
+  private decisionEndpoint: string | null;
+  private decisionTimeoutMs: number;
   private autoDetectorRan = false;
 
   private usageCache: Record<string, { at: number; data: any }> = {};
@@ -413,6 +413,9 @@ export class LlmGateNode {
       config.apiKey || process.env.OMNIROUTE_API_KEY || process.env.OPENAI_API_KEY || '';
     this.providerConnIds = config.providerConnIds || {};
     this.transportAdapter = this.normalizeTransportAdapter(config.transportAdapter);
+    this.decisionEndpoint =
+      config.decisionEndpoint || process.env.VERDICT_CORE_DECISION_ENDPOINT || null;
+    this.decisionTimeoutMs = config.decisionTimeoutMs ?? 2000;
     this.autoDetectDependencies();
   }
 
@@ -730,6 +733,40 @@ export class LlmGateNode {
     stat.score = successRate + latencyBonus;
   }
 
+  private isCanonicalRoutingDecision(value: unknown): value is CanonicalRoutingDecision {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const decision = value as Record<string, unknown>;
+    if (!decision.selected_route || typeof decision.selected_route !== 'object') return false;
+    if (decision.schema_version !== undefined && decision.schema_version !== '1') return false;
+    if (decision.exclusions !== undefined && !Array.isArray(decision.exclusions)) return false;
+    if (decision.fallback_plan !== undefined && !Array.isArray(decision.fallback_plan))
+      return false;
+    return true;
+  }
+
+  private async fetchCoreDecision(body: unknown): Promise<MiddlewareRoutingDecision | null> {
+    if (!this.decisionEndpoint) return null;
+
+    const response = await fetch(this.decisionEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.buildAdapterHeaders() },
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(this.decisionTimeoutMs),
+    });
+
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    if (!this.isCanonicalRoutingDecision(payload)) return null;
+
+    const canonical = payload as CanonicalRoutingDecision;
+    const route = canonical.selected_route as Record<string, unknown>;
+    if (route.availability === 'unavailable' || route.availability === 'denied') return null;
+    if (route.decision === 'denied' || route.decision === 'unavailable') return null;
+
+    return adaptRoutingDecision(canonical);
+  }
+
   /**
    * Intercepts preliminary evaluations to log heuristic latency.
    * @returns Express Request Handler.
@@ -738,6 +775,15 @@ export class LlmGateNode {
     return async (req: any, res: any, next: any) => {
       const start = Date.now();
       try {
+        const coreDecision = await this.fetchCoreDecision(req.body);
+        if (this.decisionEndpoint && !coreDecision) {
+          return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
+        }
+        if (coreDecision) {
+          req.llmRouter = { decision: { ...coreDecision, latencyMs: Date.now() - start } };
+          return next();
+        }
+
         const body = req.body || {};
         const prompt = JSON.stringify(body);
         const targetTier = this.evaluateTier(prompt);
@@ -751,7 +797,10 @@ export class LlmGateNode {
           },
         };
         next();
-      } catch (err) {
+      } catch (_err) {
+        if (this.decisionEndpoint) {
+          return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
+        }
         req.llmRouter = {
           decision: {
             model: this.primaryModel,
