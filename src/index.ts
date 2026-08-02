@@ -346,6 +346,19 @@ export interface ProxyResponseLike {
 
 export type ProxyNextFunction = (error?: unknown) => void;
 
+export interface NextApiRequestLike extends ProxyRequestLike {
+  method?: string;
+}
+
+export interface NextApiResponseLike extends ProxyResponseLike {
+  setHeader(name: string, value: number | string | string[]): void;
+}
+
+export type NextApiHandlerLike = (
+  req: NextApiRequestLike,
+  res: NextApiResponseLike
+) => Promise<void>;
+
 export interface GatewayConfig {
   primaryModel?: string;
   baseUrl?: string;
@@ -732,7 +745,7 @@ export class LlmGateNode {
 
   /**
    * Intercepts preliminary evaluations to log heuristic latency.
-   * @returns Express Request Handler.
+   * @returns Express-compatible request handler.
    */
   public middleware() {
     return async (req: any, res: any, next: any) => {
@@ -898,6 +911,34 @@ export class LlmGateNode {
   }
 
   /**
+   * Next.js /api route handler for POST /api/* style routes.
+   * Mirrors Express composition: evaluate routing metadata, then proxy.
+   */
+  public nextApiHandler(): NextApiHandlerLike {
+    const middleware = this.middleware();
+    const proxy = this.proxy();
+
+    return async (req, res) => {
+      if (req.method && req.method !== 'POST') {
+        res.setHeader('Allow', 'POST');
+        res.status(405).json({ error: 'Method Not Allowed' });
+        return;
+      }
+
+      await middleware(req, res, (error: unknown) => {
+        if (error) {
+          throw error;
+        }
+      });
+      await proxy(req, res, (error: unknown) => {
+        if (error) {
+          throw error;
+        }
+      });
+    };
+  }
+
+  /**
    * End-to-end Proxy and Streaming wrapper.
    * Constructs the Dynamic Route Ladder, validates live availability usage logic sequentially,
    * and executes direct stream connections ensuring 429/402 fallbacks gracefully.
@@ -970,3 +1011,9 @@ export class LlmGateNode {
 }
 
 export { LlmGateNode as LLMGateway };
+
+export function createNextApiHandler(
+  configOrModel: string | GatewayConfig = {}
+): NextApiHandlerLike {
+  return new LlmGateNode(configOrModel).nextApiHandler();
+}

@@ -9,6 +9,7 @@ import {
   ProxyRequestLike,
   ProxyResponseLike,
   MiddlewareRoutingDecisionSchema,
+  createNextApiHandler,
 } from '../src';
 
 const validRequest = {
@@ -712,6 +713,42 @@ describe('LlmGateNode', () => {
         .expect(400);
 
       expect(response.text).toContain('SyntaxError');
+    });
+  });
+
+  describe('Next.js /api compatibility', () => {
+    it('handles a Next.js-like /api route without Express next()', async () => {
+      const handler = createNextApiHandler({ apiKey: 'secret-token' });
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+        if (String(url).endsWith('/models')) {
+          return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        }
+        return new Response(JSON.stringify(validResponse), { status: 200 });
+      });
+      const recorder = createProxyResponseRecorder();
+
+      await handler(
+        {
+          method: 'POST',
+          body: validRequest,
+          headers: { accept: 'application/json' },
+        },
+        recorder.res
+      );
+
+      expect(recorder.statusCode).toBe(200);
+      expect(recorder.jsonPayload).toEqual(validResponse);
+    });
+
+    it('rejects non-POST Next.js-like /api requests', async () => {
+      const handler = createNextApiHandler();
+      const recorder = createProxyResponseRecorder();
+
+      await handler({ method: 'GET', body: {}, headers: {} }, recorder.res);
+
+      expect(recorder.statusCode).toBe(405);
+      expect(recorder.headers.get('Allow')).toBe('POST');
+      expect(recorder.jsonPayload).toEqual({ error: 'Method Not Allowed' });
     });
   });
 
