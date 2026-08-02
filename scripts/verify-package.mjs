@@ -113,8 +113,14 @@ try {
       '--eval',
       `const root = await import(${JSON.stringify(packageName)});
        const middleware = await import(${JSON.stringify(`${packageName}/middleware`)});
+       const contracts = await import('@bodanglin/verdict-contracts');
        if (typeof root.LlmGateNode !== 'function' || typeof middleware.validate !== 'function') {
          throw new Error('package exports are incomplete');
+       }
+       const accepted = contracts.contractSchemas.routing_decision.safeParse({ selected_route: {} });
+       const rejected = contracts.contractSchemas.routing_decision.safeParse({ selected_route: {}, unexpected: true });
+       if (!accepted.success || rejected.success) {
+         throw new Error('canonical routing contract strictness changed');
        }`,
     ],
     { cwd: consumerDirectory }
