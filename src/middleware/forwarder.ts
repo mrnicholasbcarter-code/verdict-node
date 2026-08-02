@@ -484,9 +484,24 @@ export class Forwarder {
             // Check for retryable status
             if (isRetryableStatus(response.status)) {
               const retryAfter = response.headers.get('retry-after');
-              const delay = retryAfter
-                ? parseInt(retryAfter, 10) * 1000
+              const retryAfterSeconds = retryAfter ? Number.parseInt(retryAfter, 10) : NaN;
+              const delay = Number.isFinite(retryAfterSeconds)
+                ? retryAfterSeconds * 1000
                 : calculateRetryDelay(attempt, this.config.retryDelayMs);
+
+              const error: UpstreamError = new Error(
+                `Upstream error: ${response.status} ${response.statusText}`
+              );
+              error.statusCode = response.status;
+              error.upstreamStatus = response.status;
+              error.retryable = true;
+              error.details = await response.text().catch(() => 'Unknown error');
+              lastError = error;
+
+              if (attempt >= this.config.maxRetries) {
+                this.handleError(error, req, res);
+                return;
+              }
 
               console.warn(
                 `[Forwarder] Model ${model} returned ${response.status}. Retrying in ${delay}ms (attempt ${attempt + 1}/${this.config.maxRetries})...`
