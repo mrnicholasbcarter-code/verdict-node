@@ -1,6 +1,6 @@
-# @verdict/node — TypeScript Middleware for Verdict Routing
+# @bodanglin/verdict-node — TypeScript Middleware for Verdict Routing
 
-[![npm](https://img.shields.io/npm/v/@verdict/node.svg)](https://www.npmjs.com/package/@verdict/node)
+[![npm](https://img.shields.io/npm/v/@bodanglin/verdict-node.svg)](https://www.npmjs.com/package/@bodanglin/verdict-node)
 [![TypeScript](https://img.shields.io/badge/typescript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-139%20passing-brightgreen.svg)](<>)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -9,9 +9,9 @@
 
 ---
 
-## What is @verdict/node?
+## What is @bodanglin/verdict-node?
 
-`@verdict/node` is the TypeScript gateway integration layer for the **Verdict** ecosystem. It accepts an Express/Next.js request, classifies criticality, discovers models from your configured OpenAI-compatible upstream (default: OmniRoute at `http://localhost:20128/v1`), rewrites the selected model, and forwards non-streaming SSE responses.
+`@bodanglin/verdict-node` is the TypeScript gateway integration layer for the **Verdict** ecosystem. It accepts an Express/Next.js request, classifies criticality, discovers models from your configured OpenAI-compatible upstream (default: OmniRoute at `http://localhost:20128/v1`), rewrites the selected model, and forwards non-streaming SSE responses.
 
 **Works with any OpenAI-compatible client**: Claude Code, Codex, Cursor, Cline, Hermes, Agents SDK, raw HTTP.
 
@@ -51,11 +51,11 @@ behind an install fallback.
 ## Install
 
 ```bash
-npm install @verdict/node
+npm install @bodanglin/verdict-node
 # or
-pnpm add @verdict/node
+pnpm add @bodanglin/verdict-node
 # or
-yarn add @verdict/node
+yarn add @bodanglin/verdict-node
 ```
 
 **Peer dependency**: `express@>=5.0.0 <6`
@@ -66,7 +66,7 @@ yarn add @verdict/node
 
 ```typescript
 import express from 'express';
-import { verdictMiddleware } from '@verdict/node/middleware';
+import { verdictMiddleware } from '@bodanglin/verdict-node/middleware';
 
 const app = express();
 app.use(express.json());
@@ -96,7 +96,7 @@ node dist/index.js
 ## Configuration
 
 ```typescript
-import { verdictMiddleware, VerdictConfig } from '@verdict/node/middleware';
+import { verdictMiddleware, VerdictConfig } from '@bodanglin/verdict-node/middleware';
 
 const config: VerdictConfig = {
   // Upstream OpenAI-compatible endpoint
@@ -146,14 +146,14 @@ Express middleware that:
 ### Types
 
 ```typescript
-// From @verdict/node
+// From @bodanglin/verdict-node
 import type {
   VerdictConfig,
   ModelInfo,
   CriticalityLevel,
   ChatCompletionRequest,
   ChatCompletionResponse,
-} from '@verdict/node';
+} from '@bodanglin/verdict-node';
 ```
 
 ---
@@ -226,7 +226,7 @@ verdict-node/
 | Package                                                           | Purpose                                |
 | ----------------------------------------------------------------- | -------------------------------------- |
 | [`verdict-core`](https://github.com/verdict/verdict-core)         | Python control plane                   |
-| `@verdict/node`                                                   | Express/Next.js middleware (this repo) |
+| `@bodanglin/verdict-node`                                         | Express/Next.js middleware (this repo) |
 | [`verdict-cockpit`](https://github.com/verdict/verdict-cockpit)   | Next.js dashboard                      |
 | [`verdict-risk`](https://github.com/verdict/verdict-risk)         | Risk engine                            |
 | [`verdict-edge`](https://github.com/verdict/verdict-edge)         | Edge mining framework                  |

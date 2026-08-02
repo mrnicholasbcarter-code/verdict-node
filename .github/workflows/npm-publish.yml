@@ -1,4 +1,4 @@
-name: Publish @verdict/node to npm
+name: Publish @bodanglin/verdict-node to npm
 
 on:
   release:
@@ -26,13 +26,15 @@ jobs:
         run: npm run build
       - name: Run tests
         run: npm test
-      - name: Verify package contents
-        run: npm pack --dry-run
-      - name: Upload package artifacts
+      - name: Verify package contents and smoke install
+        run: npm run verify:package
+      - name: Dry-run publish gate
+        run: npm publish --dry-run --access public
+      - name: Upload release notes
         uses: actions/upload-artifact@v7
         with:
-          name: verdict-node-package
-          path: dist/
+          name: verdict-node-release-notes
+          path: CHANGELOG.md
 
   publish-to-npm:
     needs: build-and-test
@@ -46,12 +48,16 @@ jobs:
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
-      - name: Download package artifacts
-        uses: actions/download-artifact@v7
-        with:
-          name: verdict-node-package
-          path: dist/
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Verify package before publish
+        run: npm run verify:package
+      - name: Assert requested version matches package.json
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
+        run: node -e "const expected=process.env.INPUT_VERSION; const actual=require('./package.json').version; if (actual !== expected) throw new Error(`workflow version ${expected} != package.json ${actual}`)"
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
       - name: Publish to npm
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
