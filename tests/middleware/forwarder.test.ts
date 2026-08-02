@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 import { Request, Response, NextFunction } from 'express';
 import request from 'supertest';
 import express, { Application } from 'express';
-import { createForwarder, Forwarder, OpenAIChatCompletionRequestSchema } from '../../src/middleware/forwarder';
+import {
+  createForwarder,
+  Forwarder,
+  OpenAIChatCompletionRequestSchema,
+} from '../../src/middleware/forwarder';
 
 describe('Forwarder Middleware', () => {
   let app: Application;
@@ -38,18 +42,20 @@ describe('Forwarder Middleware', () => {
       const requestWithTools = {
         model: 'gpt-4',
         messages: [{ role: 'user', content: 'What is the weather?' }],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'get_weather',
-            description: 'Get weather info',
-            parameters: {
-              type: 'object',
-              properties: { location: { type: 'string' } },
-              required: ['location'],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'get_weather',
+              description: 'Get weather info',
+              parameters: {
+                type: 'object',
+                properties: { location: { type: 'string' } },
+                required: ['location'],
+              },
             },
           },
-        }],
+        ],
         tool_choice: 'auto',
         parallel_tool_calls: true,
       };
@@ -105,11 +111,13 @@ describe('Forwarder Middleware', () => {
         object: 'chat.completion',
         created: Date.now(),
         model: 'gpt-4',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello!' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       };
 
@@ -192,11 +200,13 @@ describe('Forwarder Middleware', () => {
         object: 'chat.completion',
         created: Date.now(),
         model: 'gpt-4',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello!' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       };
 
@@ -242,11 +252,13 @@ describe('Forwarder Middleware', () => {
         object: 'chat.completion',
         created: Date.now(),
         model: 'gpt-4',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello!' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
       };
 
       mockFetch
@@ -326,7 +338,13 @@ describe('Forwarder Middleware', () => {
                 object: 'chat.completion',
                 created: Date.now(),
                 model: 'gpt-4',
-                choices: [{ index: 0, message: { role: 'assistant', content: 'Hello!' }, finish_reason: 'stop' }],
+                choices: [
+                  {
+                    index: 0,
+                    message: { role: 'assistant', content: 'Hello!' },
+                    finish_reason: 'stop',
+                  },
+                ],
               }),
             });
           }, 200);
@@ -367,11 +385,13 @@ describe('Forwarder Middleware', () => {
         object: 'chat.completion',
         created: Date.now(),
         model: 'gpt-4',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello!' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       };
 
@@ -416,11 +436,13 @@ describe('Forwarder Middleware', () => {
         object: 'chat.completion',
         created: Date.now(),
         model: 'gpt-4',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello!' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
         unknown_field: 'should be preserved',
       };
 
@@ -455,11 +477,13 @@ describe('Forwarder Middleware', () => {
         object: 'chat.completion',
         created: Date.now(),
         model: 'gpt-4',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello!' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
       };
 
       const responseHeaders = new Headers();
