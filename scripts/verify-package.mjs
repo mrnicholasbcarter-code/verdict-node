@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
 const packageName = '@bodanglin/verdict-node';
+const repoCompiler = resolve(process.cwd(), 'node_modules/.bin/tsc');
 const allowedTopLevel = new Set(['CHANGELOG.md', 'LICENSE', 'README.md', 'dist', 'package.json']);
 const requiredFiles = new Set([
   'CHANGELOG.md',
@@ -157,9 +158,8 @@ void validate;
     )}\n`,
     'utf8'
   );
-  const tsc = resolve('node_modules/.bin/tsc');
   try {
-    run(tsc, ['--project', join(consumerDirectory, 'tsconfig.json')], {
+    run(repoCompiler, ['--project', join(consumerDirectory, 'tsconfig.json')], {
       cwd: consumerDirectory,
     });
   } catch (error) {
