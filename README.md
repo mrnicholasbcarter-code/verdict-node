@@ -25,6 +25,7 @@
 - Zod request/response schemas
 - Model catalog discovery from configured upstream
 - Bounded fallback ladder for selected HTTP/network failures
+- Explicit fail-open behavior: inconclusive model discovery, missing quota/headroom data, unavailable usage APIs, and middleware classification errors keep routing on the safe primary/fallback path instead of blocking client traffic
 - Non-streaming SSE forwarding
 - In-memory score cache (process-local)
 
@@ -58,7 +59,7 @@ pnpm add @bodanglin/verdict-node
 yarn add @bodanglin/verdict-node
 ```
 
-**Peer dependency**: `express@>=5.0.0 <6`
+**Peer dependency**: `express@>=5.0.0 <6` only when using Express middleware. Next.js `/api` routes can use the generic handler without mounting Express.
 
 ---
 
@@ -81,6 +82,18 @@ app.use(
 );
 
 app.listen(3000, () => console.log('verdict-node listening on :3000'));
+```
+
+Next.js `/api` route:
+
+```typescript
+// pages/api/chat/completions.ts
+import { createNextApiHandler } from '@verdict/node';
+
+export default createNextApiHandler({
+  baseUrl: process.env.OMNIROUTE_BASE_URL ?? 'http://127.0.0.1:20132/v1',
+  apiKey: process.env.OMNIROUTE_API_KEY,
+});
 ```
 
 ```bash
