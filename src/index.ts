@@ -2,7 +2,11 @@ import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
-import { adaptRoutingDecision, createFallbackRoutingDecision, extractRuntimeId } from './adapters/contract-to-middleware.js';
+import {
+  adaptRoutingDecision,
+  createFallbackRoutingDecision,
+  extractRuntimeId,
+} from './adapters/contract-to-middleware.js';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 

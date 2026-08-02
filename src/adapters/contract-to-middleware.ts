@@ -37,7 +37,9 @@ export interface MiddlewareRoutingDecision {
  * - reason: string
  * - latencyMs: number
  */
-export function adaptRoutingDecision(canonical: CanonicalRoutingDecision): MiddlewareRoutingDecision {
+export function adaptRoutingDecision(
+  canonical: CanonicalRoutingDecision
+): MiddlewareRoutingDecision {
   const route = canonical.selected_route as Record<string, unknown>;
 
   // Extract model and provider from runtime_id or direct fields
@@ -69,7 +71,9 @@ export function adaptRoutingDecision(canonical: CanonicalRoutingDecision): Middl
   if (decision !== 'routed') reasons.push(`decision: ${decision}`);
   if (escalated && escalationReason) reasons.push(`escalated: ${escalationReason}`);
   if (canonical.exclusions && canonical.exclusions.length > 0) {
-    reasons.push(`excluded: ${canonical.exclusions.map((e: any) => e.reason || e.model || 'unknown').join(', ')}`);
+    reasons.push(
+      `excluded: ${canonical.exclusions.map((e: any) => e.reason || e.model || 'unknown').join(', ')}`
+    );
   }
 
   return {

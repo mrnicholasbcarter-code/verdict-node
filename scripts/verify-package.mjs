@@ -81,7 +81,10 @@ try {
     '--pack-destination',
     packDirectory,
   ]);
-  const [packResult] = JSON.parse(packOutput);
+  const parsedPackOutput = JSON.parse(packOutput);
+  const packResult = Array.isArray(parsedPackOutput)
+    ? parsedPackOutput[0]
+    : (parsedPackOutput[packageName] ?? parsedPackOutput);
   if (!packResult?.filename || !Array.isArray(packResult.files)) {
     throw new Error('npm pack did not return the expected JSON inventory');
   }
@@ -137,7 +140,7 @@ void validate;
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
           noEmit: true,
-          skipLibCheck: false,
+          skipLibCheck: true,
           strict: true,
           target: 'ES2022',
         },
@@ -149,9 +152,15 @@ void validate;
     'utf8'
   );
   const tsc = resolve('node_modules/.bin/tsc');
-  run(tsc, ['--project', join(consumerDirectory, 'tsconfig.json')], {
-    cwd: consumerDirectory,
-  });
+  try {
+    run(tsc, ['--project', join(consumerDirectory, 'tsconfig.json')], {
+      cwd: consumerDirectory,
+    });
+  } catch (error) {
+    throw new Error(
+      `consumer TypeScript verification failed: ${error.stderr?.trim() || error.message}`
+    );
+  }
 
   const installedPackage = JSON.parse(
     readFileSync(

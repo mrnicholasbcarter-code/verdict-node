@@ -79,13 +79,25 @@ function hasExpectedPrototype(value: object, array: boolean): boolean {
   if (prototype === null) return false;
   const parent = Object.getPrototypeOf(prototype);
   if (!array) return parent === null;
-  return parent !== null && Object.getPrototypeOf(parent) === null && Object.prototype.hasOwnProperty.call(prototype, 'push');
+  return (
+    parent !== null &&
+    Object.getPrototypeOf(parent) === null &&
+    Object.prototype.hasOwnProperty.call(prototype, 'push')
+  );
 }
 
-function addUnsafeKeyIssues(value: unknown, ctx: z.RefinementCtx, path: Array<string | number> = []): void {
+function addUnsafeKeyIssues(
+  value: unknown,
+  ctx: z.RefinementCtx,
+  path: Array<string | number> = []
+): void {
   if (Array.isArray(value)) {
     if (!hasExpectedPrototype(value, true)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Array prototype is not allowed.', path });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Array prototype is not allowed.',
+        path,
+      });
       return;
     }
     value.forEach((item, index) => addUnsafeKeyIssues(item, ctx, [...path, index]));
@@ -93,23 +105,37 @@ function addUnsafeKeyIssues(value: unknown, ctx: z.RefinementCtx, path: Array<st
   }
   if (!value || typeof value !== 'object') return;
   if (!hasExpectedPrototype(value, false)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Object prototype is not allowed.', path });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Object prototype is not allowed.',
+      path,
+    });
     return;
   }
   for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
     if (UNSAFE_OBJECT_KEYS.has(key)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unsafe key "${key}" is not allowed.`, path: [...path, key] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unsafe key "${key}" is not allowed.`,
+        path: [...path, key],
+      });
     }
     addUnsafeKeyIssues(nestedValue, ctx, [...path, key]);
   }
 }
 
 function safeObject<T extends z.ZodRawShape>(shape: T) {
-  return z.object(shape).passthrough().superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
+  return z
+    .object(shape)
+    .passthrough()
+    .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx));
 }
 
 function guardRawInput<T extends z.ZodTypeAny>(schema: T): T {
-  return z.unknown().superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx)).pipe(schema) as unknown as T;
+  return z
+    .unknown()
+    .superRefine((value, ctx) => addUnsafeKeyIssues(value, ctx))
+    .pipe(schema) as unknown as T;
 }
 
 // Tool schemas
@@ -179,7 +205,9 @@ export const OpenAIChatCompletionRequestSchema = guardRawInput(
     logprobs: z.boolean().optional(),
     top_logprobs: z.number().int().min(0).max(20).optional(),
     tools: z.array(OpenAIChatToolSchema).optional(),
-    tool_choice: z.union([z.literal('none'), z.literal('auto'), z.literal('required'), OpenAIChatToolSchema]).optional(),
+    tool_choice: z
+      .union([z.literal('none'), z.literal('auto'), z.literal('required'), OpenAIChatToolSchema])
+      .optional(),
     parallel_tool_calls: z.boolean().optional(),
     response_format: OpenAIResponseFormatSchema.optional(),
     seed: z.number().int().optional(),
@@ -192,7 +220,9 @@ export const OpenAIChatCompletionRequestSchema = guardRawInput(
 const OpenAIChatCompletionChoiceSchema = safeObject({
   index: z.number().int().nonnegative(),
   message: OpenAIChatMessageSchema,
-  finish_reason: z.enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call']).nullable(),
+  finish_reason: z
+    .enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call'])
+    .nullable(),
   logprobs: z.unknown().nullable().optional(),
 });
 
@@ -222,20 +252,25 @@ const OpenAIChatCompletionChunkChoiceSchema = safeObject({
   delta: safeObject({
     role: z.enum(['system', 'user', 'assistant', 'tool', 'function', 'developer']).optional(),
     content: z.string().nullable().optional(),
-    tool_calls: z.array(
-      safeObject({
-        index: z.number().int().nonnegative(),
-        id: z.string().optional(),
-        type: z.literal('function').optional(),
-        function: safeObject({
-          name: z.string().optional(),
-          arguments: z.string().optional(),
-        }).optional(),
-      })
-    ).optional(),
+    tool_calls: z
+      .array(
+        safeObject({
+          index: z.number().int().nonnegative(),
+          id: z.string().optional(),
+          type: z.literal('function').optional(),
+          function: safeObject({
+            name: z.string().optional(),
+            arguments: z.string().optional(),
+          }).optional(),
+        })
+      )
+      .optional(),
     function_call: OpenAIFunctionCallSchema.optional(),
   }),
-  finish_reason: z.enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call']).nullable().optional(),
+  finish_reason: z
+    .enum(['stop', 'length', 'tool_calls', 'content_filter', 'function_call'])
+    .nullable()
+    .optional(),
   logprobs: z.unknown().nullable().optional(),
 });
 
@@ -324,7 +359,10 @@ function calculateRetryDelay(attempt: number, baseDelay: number): number {
   return Math.min(delay + jitter, 30000); // Cap at 30 seconds
 }
 
-function buildUpstreamHeaders(req: Request, config: Required<ForwarderConfig>): Record<string, string> {
+function buildUpstreamHeaders(
+  req: Request,
+  config: Required<ForwarderConfig>
+): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -365,7 +403,10 @@ function filterResponseHeaders(
   return filtered;
 }
 
-function createAbortController(timeoutMs: number): { controller: AbortController; timeoutId: NodeJS.Timeout } {
+function createAbortController(timeoutMs: number): {
+  controller: AbortController;
+  timeoutId: NodeJS.Timeout;
+} {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   return { controller, timeoutId };
@@ -443,7 +484,9 @@ export class Forwarder {
             // Check for retryable status
             if (isRetryableStatus(response.status)) {
               const retryAfter = response.headers.get('retry-after');
-              const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : calculateRetryDelay(attempt, this.config.retryDelayMs);
+              const delay = retryAfter
+                ? parseInt(retryAfter, 10) * 1000
+                : calculateRetryDelay(attempt, this.config.retryDelayMs);
 
               console.warn(
                 `[Forwarder] Model ${model} returned ${response.status}. Retrying in ${delay}ms (attempt ${attempt + 1}/${this.config.maxRetries})...`
@@ -456,7 +499,9 @@ export class Forwarder {
 
             if (!response.ok) {
               const errorText = await response.text().catch(() => 'Unknown error');
-              const error: UpstreamError = new Error(`Upstream error: ${response.status} ${response.statusText}`);
+              const error: UpstreamError = new Error(
+                `Upstream error: ${response.status} ${response.statusText}`
+              );
               error.statusCode = response.status;
               error.upstreamStatus = response.status;
               error.retryable = isRetryableStatus(response.status);
@@ -484,7 +529,9 @@ export class Forwarder {
             cleanup();
 
             if (err instanceof Error && err.name === 'AbortError') {
-              const error: UpstreamError = new Error('Request aborted (timeout or client disconnect)');
+              const error: UpstreamError = new Error(
+                'Request aborted (timeout or client disconnect)'
+              );
               error.statusCode = 408;
               error.retryable = false;
               this.handleError(error, req, res);
@@ -494,7 +541,10 @@ export class Forwarder {
             lastError = err as UpstreamError;
 
             // Check if we should retry
-            if (attempt < this.config.maxRetries && (lastError.retryable ?? isRetryableStatus(lastError.upstreamStatus ?? 0))) {
+            if (
+              attempt < this.config.maxRetries &&
+              (lastError.retryable ?? isRetryableStatus(lastError.upstreamStatus ?? 0))
+            ) {
               const delay = calculateRetryDelay(attempt, this.config.retryDelayMs);
               console.warn(
                 `[Forwarder] Request failed, retrying in ${delay}ms (attempt ${attempt + 1}/${this.config.maxRetries}):`,
