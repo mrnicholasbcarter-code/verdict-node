@@ -528,4 +528,96 @@ describe('Forwarder Middleware', () => {
       forwarder.clearUsage(); // Should not throw
     });
   });
+
+  describe('ExecutionEnvelope Enforcement', () => {
+    const validEnvelope = {
+      schema_version: '1',
+      policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      execution_constraints: {
+        allowed_models: ['gpt-4'],
+        allowed_tools: ['get_weather'],
+        max_request_usd: 1.0,
+      },
+      expires_at: new Date(Date.now() + 3600000).toISOString(),
+    };
+
+    it('should allow forwarding when execution envelope is valid', async () => {
+      const mockResponse = {
+        id: 'chatcmpl-123',
+        object: 'chat.completion',
+        created: Date.now(),
+        model: 'gpt-4',
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello!' },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => mockResponse,
+      });
+
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        executionEnvelope: validEnvelope,
+        requireExecutionEnvelope: true,
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(200);
+
+      expect(response.body.id).toBe('chatcmpl-123');
+    });
+
+    it('should return 403 when envelope is missing and required', async () => {
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: true,
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('envelope_missing');
+    });
+
+    it('should return 403 when requested model is disallowed by envelope', async () => {
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        executionEnvelope: validEnvelope,
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'unauthorized-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('model_disallowed');
+    });
+  });
 });
