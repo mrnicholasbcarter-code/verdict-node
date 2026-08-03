@@ -25,6 +25,10 @@ jobs:
         run: npm run format:check
       - name: Build
         run: npm run build
+      - name: Install local package for contract tests
+        run: |
+          npm pack --ignore-scripts --pack-destination /tmp
+          npm install --no-audit --no-fund /tmp/@bodanglin-verdict-node-*.tgz
       - name: Test
         run: npm test
       - name: Verify shipped package in a clean consumer
