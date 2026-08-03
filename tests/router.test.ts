@@ -161,6 +161,19 @@ function createApp() {
 }
 
 describe('LlmGateNode', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.OMNIROUTE_BASE_URL;
+    delete process.env.OMNIROUTE_API_BASE_URL;
+    delete process.env.OMNIROUTE_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
   const createGatewayForProxyTests = () => {
     const gateway = new LlmGateNode({ apiKey: 'secret-token' });
     jest.spyOn(gateway as any, 'buildDynamicLadder').mockResolvedValue(['fallback-model']);
