@@ -1,7 +1,7 @@
 name: Clean Install CI
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, master, develop, feat/**]
   pull_request:
     branches: [main, master, develop]
 jobs:
