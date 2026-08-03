@@ -112,30 +112,54 @@ export function enforceExecutionEnvelope(
     throw new ExecutionEnvelopeError('envelope_tampered', 'Core policy digest does not match');
   }
   const expiresAt = candidate.expires_at;
-  if (typeof expiresAt === 'string' && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())) {
+  if (
+    typeof expiresAt === 'string' &&
+    (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())
+  ) {
     throw new ExecutionEnvelopeError('envelope_expired', 'Core execution envelope has expired');
   }
   const constraints = candidate.execution_constraints;
   if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) return;
   const bounded = constraints as Record<string, unknown>;
   const allowedModels = bounded.allowed_models;
-  if (Array.isArray(allowedModels) && allowedModels.every(item => typeof item === 'string') && !allowedModels.includes(request.model)) {
-    throw new ExecutionEnvelopeError('model_disallowed', 'Requested model is outside the Core envelope');
+  if (
+    Array.isArray(allowedModels) &&
+    allowedModels.every(item => typeof item === 'string') &&
+    !allowedModels.includes(request.model)
+  ) {
+    throw new ExecutionEnvelopeError(
+      'model_disallowed',
+      'Requested model is outside the Core envelope'
+    );
   }
   const requestTools = (request.tools ?? [])
     .map(tool => tool.function?.name)
     .filter((name): name is string => typeof name === 'string');
   const allowedTools = bounded.allowed_tools;
-  if (Array.isArray(allowedTools) && allowedTools.every(item => typeof item === 'string') && requestTools.some(name => !allowedTools.includes(name))) {
-    throw new ExecutionEnvelopeError('tool_disallowed', 'Requested tool is outside the Core envelope');
+  if (
+    Array.isArray(allowedTools) &&
+    allowedTools.every(item => typeof item === 'string') &&
+    requestTools.some(name => !allowedTools.includes(name))
+  ) {
+    throw new ExecutionEnvelopeError(
+      'tool_disallowed',
+      'Requested tool is outside the Core envelope'
+    );
   }
   const maxCost = bounded.max_request_usd ?? bounded.budget_usd;
-  if (typeof maxCost === 'number' && typeof options.estimatedCostUsd === 'number' && options.estimatedCostUsd > maxCost) {
+  if (
+    typeof maxCost === 'number' &&
+    typeof options.estimatedCostUsd === 'number' &&
+    options.estimatedCostUsd > maxCost
+  ) {
     throw new ExecutionEnvelopeError('budget_exceeded', 'Request exceeds the Core envelope budget');
   }
 }
 
-export function createEnvelopeDenial(error: ExecutionEnvelopeError): { error: string; code: EnvelopeDenialCode } {
+export function createEnvelopeDenial(error: ExecutionEnvelopeError): {
+  error: string;
+  code: EnvelopeDenialCode;
+} {
   return { error: error.message, code: error.code };
 }
 
@@ -397,7 +421,10 @@ const HOP_BY_HOP_HEADERS = new Set([
 // Default Configuration
 // ============================================================================
 
-const DEFAULT_CONFIG: Omit<Required<ForwarderConfig>, 'executionEnvelope' | 'requireExecutionEnvelope' | 'expectedPolicyDigest'> & {
+const DEFAULT_CONFIG: Omit<
+  Required<ForwarderConfig>,
+  'executionEnvelope' | 'requireExecutionEnvelope' | 'expectedPolicyDigest'
+> & {
   executionEnvelope?: unknown;
   requireExecutionEnvelope?: boolean;
   expectedPolicyDigest?: string;
@@ -452,10 +479,7 @@ function calculateRetryDelay(attempt: number, baseDelay: number): number {
   return Math.min(delay + jitter, 30000); // Cap at 30 seconds
 }
 
-function buildUpstreamHeaders(
-  req: Request,
-  config: ForwarderConfig
-): Record<string, string> {
+function buildUpstreamHeaders(req: Request, config: ForwarderConfig): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -468,7 +492,7 @@ function buildUpstreamHeaders(
   }
 
   // Forward allowed headers
-  for (const header of (config.forwardHeaders ?? DEFAULT_CONFIG.forwardHeaders)) {
+  for (const header of config.forwardHeaders ?? DEFAULT_CONFIG.forwardHeaders) {
     const value = req.headers[header.toLowerCase()];
     if (value) {
       headers[header] = Array.isArray(value) ? value[0] : value;
@@ -489,7 +513,10 @@ function filterResponseHeaders(
     // Strip hop-by-hop headers
     if (HOP_BY_HOP_HEADERS.has(lowerKey)) return;
     // Strip configured headers
-    if ((config.stripHeaders ?? DEFAULT_CONFIG.stripHeaders).some(h => h.toLowerCase() === lowerKey)) return;
+    if (
+      (config.stripHeaders ?? DEFAULT_CONFIG.stripHeaders).some(h => h.toLowerCase() === lowerKey)
+    )
+      return;
     filtered[key] = value;
   });
 
@@ -548,7 +575,6 @@ export class Forwarder {
           expectedPolicyDigest: this.config.expectedPolicyDigest,
           required: this.config.requireExecutionEnvelope,
         });
-
       } catch (error) {
         if (error instanceof ExecutionEnvelopeError) {
           res.status(403).json(createEnvelopeDenial(error));

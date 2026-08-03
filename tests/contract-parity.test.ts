@@ -52,9 +52,9 @@ describe('canonical routing contract parity', () => {
     });
 
     it('rejects missing envelope when required', () => {
-      expect(() =>
-        enforceExecutionEnvelope(null, { model: 'gpt-4o' }, { required: true })
-      ).toThrow(ExecutionEnvelopeError);
+      expect(() => enforceExecutionEnvelope(null, { model: 'gpt-4o' }, { required: true })).toThrow(
+        ExecutionEnvelopeError
+      );
       try {
         enforceExecutionEnvelope(null, { model: 'gpt-4o' }, { required: true });
       } catch (err: any) {
@@ -74,9 +74,9 @@ describe('canonical routing contract parity', () => {
     });
 
     it('rejects disallowed model', () => {
-      expect(() => enforceExecutionEnvelope(validEnvelope, { model: 'unauthorized-model' })).toThrow(
-        ExecutionEnvelopeError
-      );
+      expect(() =>
+        enforceExecutionEnvelope(validEnvelope, { model: 'unauthorized-model' })
+      ).toThrow(ExecutionEnvelopeError);
     });
 
     it('rejects disallowed tool', () => {
