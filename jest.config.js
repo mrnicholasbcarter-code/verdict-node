@@ -8,6 +8,9 @@ module.exports = {
   transform: {
     '^.+\\.(ts|js)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
   },
+  moduleNameMapper: {
+    '^@bodanglin/verdict-contracts$': '<rootDir>/node_modules/@bodanglin/verdict-contracts',
+  },
   transformIgnorePatterns: ['/node_modules/(?!@bodanglin/verdict-contracts)'],
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/**/*.test.ts'],
   coverageDirectory: 'coverage',
