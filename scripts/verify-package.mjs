@@ -161,6 +161,7 @@ void validate;
   try {
     run(repoCompiler, ['--project', join(consumerDirectory, 'tsconfig.json')], {
       cwd: consumerDirectory,
+      env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' },
     });
   } catch (error) {
     throw new Error(

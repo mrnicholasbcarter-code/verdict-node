@@ -28,11 +28,50 @@ type FetchResponse = Response;
 // Configuration Types
 // ============================================================================
 
+export interface ExecutionEnvelope {
+  schema_version: '1';
+  policy_digest: string;
+  execution_constraints?: {
+    allowed_models?: string[];
+    allowed_tools?: string[];
+    budget_usd?: number;
+    max_request_usd?: number;
+    [key: string]: unknown;
+  };
+  expires_at?: string;
+  [key: string]: unknown;
+}
+
+export type EnvelopeDenialCode =
+  | 'envelope_missing'
+  | 'envelope_invalid'
+  | 'envelope_expired'
+  | 'envelope_tampered'
+  | 'model_disallowed'
+  | 'tool_disallowed'
+  | 'budget_exceeded';
+
+export class ExecutionEnvelopeError extends Error {
+  readonly code: EnvelopeDenialCode;
+
+  constructor(code: EnvelopeDenialCode, message: string) {
+    super(message);
+    this.name = 'ExecutionEnvelopeError';
+    this.code = code;
+  }
+}
+
 export interface ForwarderConfig {
   /** Upstream base URL (e.g., 'http://localhost:20132/v1') */
   baseUrl: string;
   /** API key for upstream authentication */
   apiKey?: string;
+  /** Optional Core-authorized envelope. Required when enforcement is enabled. */
+  executionEnvelope?: unknown;
+  /** Enforce the Core envelope before forwarding. */
+  requireExecutionEnvelope?: boolean;
+  /** Optional expected policy digest for tamper detection. */
+  expectedPolicyDigest?: string;
   /** Request timeout in milliseconds (default: 60000) */
   timeoutMs?: number;
   /** Maximum number of retries for retryable errors (default: 3) */
@@ -51,6 +90,77 @@ export interface ForwarderConfig {
   onUsage?: (usage: UsageInfo) => void;
   /** Error handler for upstream errors */
   onError?: (error: UpstreamError, req: Request, res: ExpressResponse) => void;
+}
+
+export function enforceExecutionEnvelope(
+  envelope: unknown,
+  request: { model: string; tools?: Array<{ function?: { name?: string } }> },
+  options: { expectedPolicyDigest?: string; estimatedCostUsd?: number; required?: boolean } = {}
+): void {
+  if (!envelope && !options.required) return;
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new ExecutionEnvelopeError('envelope_missing', 'Core execution envelope is required');
+  }
+  const candidate = envelope as Record<string, unknown>;
+  if (candidate.schema_version !== '1' || typeof candidate.policy_digest !== 'string') {
+    throw new ExecutionEnvelopeError('envelope_invalid', 'Core execution envelope is invalid');
+  }
+  if (
+    options.expectedPolicyDigest !== undefined &&
+    candidate.policy_digest !== options.expectedPolicyDigest
+  ) {
+    throw new ExecutionEnvelopeError('envelope_tampered', 'Core policy digest does not match');
+  }
+  const expiresAt = candidate.expires_at;
+  if (
+    typeof expiresAt === 'string' &&
+    (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())
+  ) {
+    throw new ExecutionEnvelopeError('envelope_expired', 'Core execution envelope has expired');
+  }
+  const constraints = candidate.execution_constraints;
+  if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) return;
+  const bounded = constraints as Record<string, unknown>;
+  const allowedModels = bounded.allowed_models;
+  if (
+    Array.isArray(allowedModels) &&
+    allowedModels.every(item => typeof item === 'string') &&
+    !allowedModels.includes(request.model)
+  ) {
+    throw new ExecutionEnvelopeError(
+      'model_disallowed',
+      'Requested model is outside the Core envelope'
+    );
+  }
+  const requestTools = (request.tools ?? [])
+    .map(tool => tool.function?.name)
+    .filter((name): name is string => typeof name === 'string');
+  const allowedTools = bounded.allowed_tools;
+  if (
+    Array.isArray(allowedTools) &&
+    allowedTools.every(item => typeof item === 'string') &&
+    requestTools.some(name => !allowedTools.includes(name))
+  ) {
+    throw new ExecutionEnvelopeError(
+      'tool_disallowed',
+      'Requested tool is outside the Core envelope'
+    );
+  }
+  const maxCost = bounded.max_request_usd ?? bounded.budget_usd;
+  if (
+    typeof maxCost === 'number' &&
+    typeof options.estimatedCostUsd === 'number' &&
+    options.estimatedCostUsd > maxCost
+  ) {
+    throw new ExecutionEnvelopeError('budget_exceeded', 'Request exceeds the Core envelope budget');
+  }
+}
+
+export function createEnvelopeDenial(error: ExecutionEnvelopeError): {
+  error: string;
+  code: EnvelopeDenialCode;
+} {
+  return { error: error.message, code: error.code };
 }
 
 export interface UsageInfo {
@@ -311,9 +421,19 @@ const HOP_BY_HOP_HEADERS = new Set([
 // Default Configuration
 // ============================================================================
 
-const DEFAULT_CONFIG: Required<ForwarderConfig> = {
+const DEFAULT_CONFIG: Omit<
+  Required<ForwarderConfig>,
+  'executionEnvelope' | 'requireExecutionEnvelope' | 'expectedPolicyDigest'
+> & {
+  executionEnvelope?: unknown;
+  requireExecutionEnvelope?: boolean;
+  expectedPolicyDigest?: string;
+} = {
   baseUrl: '',
   apiKey: '',
+  executionEnvelope: undefined,
+  requireExecutionEnvelope: false,
+  expectedPolicyDigest: undefined,
   timeoutMs: 60000,
   maxRetries: 3,
   retryDelayMs: 1000,
@@ -359,10 +479,7 @@ function calculateRetryDelay(attempt: number, baseDelay: number): number {
   return Math.min(delay + jitter, 30000); // Cap at 30 seconds
 }
 
-function buildUpstreamHeaders(
-  req: Request,
-  config: Required<ForwarderConfig>
-): Record<string, string> {
+function buildUpstreamHeaders(req: Request, config: ForwarderConfig): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -375,7 +492,7 @@ function buildUpstreamHeaders(
   }
 
   // Forward allowed headers
-  for (const header of config.forwardHeaders) {
+  for (const header of config.forwardHeaders ?? DEFAULT_CONFIG.forwardHeaders) {
     const value = req.headers[header.toLowerCase()];
     if (value) {
       headers[header] = Array.isArray(value) ? value[0] : value;
@@ -387,7 +504,7 @@ function buildUpstreamHeaders(
 
 function filterResponseHeaders(
   upstreamHeaders: Headers,
-  config: Required<ForwarderConfig>
+  config: ForwarderConfig
 ): Record<string, string> {
   const filtered: Record<string, string> = {};
 
@@ -396,7 +513,10 @@ function filterResponseHeaders(
     // Strip hop-by-hop headers
     if (HOP_BY_HOP_HEADERS.has(lowerKey)) return;
     // Strip configured headers
-    if (config.stripHeaders.some(h => h.toLowerCase() === lowerKey)) return;
+    if (
+      (config.stripHeaders ?? DEFAULT_CONFIG.stripHeaders).some(h => h.toLowerCase() === lowerKey)
+    )
+      return;
     filtered[key] = value;
   });
 
@@ -417,7 +537,7 @@ function createAbortController(timeoutMs: number): {
 // ============================================================================
 
 export class Forwarder {
-  private config: Required<ForwarderConfig>;
+  private config: ForwarderConfig & typeof DEFAULT_CONFIG;
   private usageCache: Map<string, UsageInfo> = new Map();
 
   constructor(config: ForwarderConfig) {
@@ -450,6 +570,18 @@ export class Forwarder {
       }
 
       const requestBody = parsedRequest.data;
+      try {
+        enforceExecutionEnvelope(this.config.executionEnvelope, requestBody, {
+          expectedPolicyDigest: this.config.expectedPolicyDigest,
+          required: this.config.requireExecutionEnvelope,
+        });
+      } catch (error) {
+        if (error instanceof ExecutionEnvelopeError) {
+          res.status(403).json(createEnvelopeDenial(error));
+          return;
+        }
+        throw error;
+      }
       const isStream = requestBody.stream === true;
       const model = requestBody.model;
 
