@@ -68,7 +68,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.1",
     "@types/supertest": "^7.2.1",
-    "config": "^4.4.2",
+    "config": "^5.0.0",
     "express": "^5.2.1",
     "jest": "^30.4.2",
     "prettier": "^3.9.5",
