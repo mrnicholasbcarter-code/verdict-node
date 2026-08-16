@@ -32,9 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      # Temporary pin to unmerged verdict-core PR #290 (commit 7291941).
-      # Move to @main or a release tag once mrnicholasbcarter-code/verdict-core#290 merges.
       - name: Install verdict-core (compat gate)
-        run: pip install "git+https://github.com/mrnicholasbcarter-code/verdict-core.git@7291941"
+        run: pip install "git+https://github.com/mrnicholasbcarter-code/verdict-core.git@main"
       - name: Verify compat manifest gate
         run: verdict compat check --declared .verdict/compat-manifest.json --json
