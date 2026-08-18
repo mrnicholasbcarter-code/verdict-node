@@ -36,11 +36,23 @@ export interface ExecutionEnvelope {
     allowed_tools?: string[];
     budget_usd?: number;
     max_request_usd?: number;
-    [key: string]: unknown;
   };
   expires_at?: string;
-  [key: string]: unknown;
 }
+
+const KNOWN_ENVELOPE_FIELDS = new Set([
+  'schema_version',
+  'policy_digest',
+  'execution_constraints',
+  'expires_at',
+]);
+
+const KNOWN_CONSTRAINT_FIELDS = new Set([
+  'allowed_models',
+  'allowed_tools',
+  'budget_usd',
+  'max_request_usd',
+]);
 
 export type EnvelopeDenialCode =
   | 'envelope_missing'
@@ -68,7 +80,11 @@ export interface ForwarderConfig {
   apiKey?: string;
   /** Optional Core-authorized envelope. Required when enforcement is enabled. */
   executionEnvelope?: unknown;
-  /** Enforce the Core envelope before forwarding. */
+  /**
+   * Enforce the Core envelope before forwarding. Defaults to `true` (fail
+   * closed): requests without a valid Core envelope are denied. Set to
+   * `false` explicitly to opt out for compatibility-only deployments.
+   */
   requireExecutionEnvelope?: boolean;
   /** Optional expected policy digest for tamper detection. */
   expectedPolicyDigest?: string;
@@ -105,6 +121,14 @@ export function enforceExecutionEnvelope(
   if (candidate.schema_version !== '1' || typeof candidate.policy_digest !== 'string') {
     throw new ExecutionEnvelopeError('envelope_invalid', 'Core execution envelope is invalid');
   }
+  for (const key of Object.keys(candidate)) {
+    if (!KNOWN_ENVELOPE_FIELDS.has(key)) {
+      throw new ExecutionEnvelopeError(
+        'envelope_invalid',
+        `Core execution envelope contains unknown field: ${key}`
+      );
+    }
+  }
   if (
     options.expectedPolicyDigest !== undefined &&
     candidate.policy_digest !== options.expectedPolicyDigest
@@ -119,8 +143,22 @@ export function enforceExecutionEnvelope(
     throw new ExecutionEnvelopeError('envelope_expired', 'Core execution envelope has expired');
   }
   const constraints = candidate.execution_constraints;
-  if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) return;
+  if (constraints === undefined) return;
+  if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) {
+    throw new ExecutionEnvelopeError(
+      'envelope_invalid',
+      'Core execution envelope constraints are invalid'
+    );
+  }
   const bounded = constraints as Record<string, unknown>;
+  for (const key of Object.keys(bounded)) {
+    if (!KNOWN_CONSTRAINT_FIELDS.has(key)) {
+      throw new ExecutionEnvelopeError(
+        'envelope_invalid',
+        `Core execution envelope constraints contain unknown field: ${key}`
+      );
+    }
+  }
   const allowedModels = bounded.allowed_models;
   if (
     Array.isArray(allowedModels) &&
@@ -432,7 +470,9 @@ const DEFAULT_CONFIG: Omit<
   baseUrl: '',
   apiKey: '',
   executionEnvelope: undefined,
-  requireExecutionEnvelope: false,
+  // Fail closed by default: forwarding requires a Core-authorized envelope
+  // unless the integrator explicitly opts out with `requireExecutionEnvelope: false`.
+  requireExecutionEnvelope: true,
   expectedPolicyDigest: undefined,
   timeoutMs: 60000,
   maxRetries: 3,
@@ -542,6 +582,9 @@ export class Forwarder {
 
   constructor(config: ForwarderConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    // Fail closed even if the caller passes `requireExecutionEnvelope: undefined`,
+    // which would otherwise clobber the secure default via object spread.
+    this.config.requireExecutionEnvelope = config.requireExecutionEnvelope ?? true;
 
     if (!this.config.baseUrl) {
       throw new Error('ForwarderConfig.baseUrl is required');
