@@ -95,7 +95,10 @@ describe('Forwarder Middleware', () => {
 
   describe('Forwarder Middleware', () => {
     it('should return 400 for invalid request body', async () => {
-      const forwarderMiddleware = createForwarder({ baseUrl: 'http://localhost:20132/v1' });
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: false,
+      });
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
 
       const response = await request(app)
@@ -132,6 +135,7 @@ describe('Forwarder Middleware', () => {
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
         apiKey: 'test-key',
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -181,6 +185,7 @@ describe('Forwarder Middleware', () => {
 
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -231,6 +236,7 @@ describe('Forwarder Middleware', () => {
         baseUrl: 'http://localhost:20132/v1',
         maxRetries: 3,
         retryDelayMs: 10, // Fast retry for testing
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -281,6 +287,7 @@ describe('Forwarder Middleware', () => {
         baseUrl: 'http://localhost:20132/v1',
         maxRetries: 3,
         retryDelayMs: 10,
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -309,6 +316,7 @@ describe('Forwarder Middleware', () => {
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
         maxRetries: 3,
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -365,6 +373,7 @@ describe('Forwarder Middleware', () => {
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
         timeoutMs: 50, // Very short timeout for testing
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -404,7 +413,10 @@ describe('Forwarder Middleware', () => {
           }),
         });
 
-      app.post('/chat/completions', createForwarder({ baseUrl: 'http://localhost:20132/v1' }));
+      app.post(
+        '/chat/completions',
+        createForwarder({ baseUrl: 'http://localhost:20132/v1', requireExecutionEnvelope: false })
+      );
 
       const response = await request(app)
         .post('/chat/completions')
@@ -426,7 +438,11 @@ describe('Forwarder Middleware', () => {
 
       app.post(
         '/chat/completions',
-        createForwarder({ baseUrl: 'http://localhost:20132/v1', maxRetries: 1 })
+        createForwarder({
+          baseUrl: 'http://localhost:20132/v1',
+          maxRetries: 1,
+          requireExecutionEnvelope: false,
+        })
       );
 
       const response = await request(app)
@@ -469,7 +485,11 @@ describe('Forwarder Middleware', () => {
 
       app.post(
         '/chat/completions',
-        createForwarder({ baseUrl: 'http://localhost:20132/v1', retryDelayMs: 0 })
+        createForwarder({
+          baseUrl: 'http://localhost:20132/v1',
+          retryDelayMs: 0,
+          requireExecutionEnvelope: false,
+        })
       );
 
       await request(app)
@@ -493,7 +513,11 @@ describe('Forwarder Middleware', () => {
           })
       );
 
-      const middleware = createForwarder({ baseUrl: 'http://localhost:20132/v1', timeoutMs: 1000 });
+      const middleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        timeoutMs: 1000,
+        requireExecutionEnvelope: false,
+      });
       const req = new EventEmitter() as Request;
       req.body = { model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] };
       req.headers = {};
@@ -532,7 +556,10 @@ describe('Forwarder Middleware', () => {
         },
       });
 
-      app.post('/chat/completions', createForwarder({ baseUrl: 'http://localhost:20132/v1' }));
+      app.post(
+        '/chat/completions',
+        createForwarder({ baseUrl: 'http://localhost:20132/v1', requireExecutionEnvelope: false })
+      );
 
       const response = await request(app)
         .post('/chat/completions')
@@ -555,7 +582,11 @@ describe('Forwarder Middleware', () => {
 
       app.post(
         '/chat/completions',
-        createForwarder({ baseUrl: 'http://localhost:20132/v1', onError })
+        createForwarder({
+          baseUrl: 'http://localhost:20132/v1',
+          onError,
+          requireExecutionEnvelope: false,
+        })
       );
 
       await request(app)
@@ -599,6 +630,7 @@ describe('Forwarder Middleware', () => {
         baseUrl: 'http://localhost:20132/v1',
         trackUsage: true,
         onUsage: usageCallback,
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -647,6 +679,7 @@ describe('Forwarder Middleware', () => {
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
         preserveUnknownFields: true,
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -692,6 +725,7 @@ describe('Forwarder Middleware', () => {
 
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: false,
       });
 
       app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
@@ -774,6 +808,117 @@ describe('Forwarder Middleware', () => {
     });
 
     it('should return 403 when envelope is missing and required', async () => {
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: true,
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('envelope_missing');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should fail closed by default when no envelope is configured', async () => {
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('envelope_missing');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should fail closed when requireExecutionEnvelope is explicitly undefined', async () => {
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: undefined,
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(403);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should allow explicit compatibility opt-out with requireExecutionEnvelope: false', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          id: 'chatcmpl-optout',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-4',
+          choices: [
+            { index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' },
+          ],
+        }),
+      });
+
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        requireExecutionEnvelope: false,
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(200);
+
+      expect(response.body.id).toBe('chatcmpl-optout');
+    });
+
+    it('should return 403 for an envelope containing unknown fields', async () => {
+      const forwarderMiddleware = createForwarder({
+        baseUrl: 'http://localhost:20132/v1',
+        executionEnvelope: { ...validEnvelope, injected: true },
+      });
+
+      app.post('/chat/completions', forwarderMiddleware, (req, res) => res.json({ success: true }));
+
+      const response = await request(app)
+        .post('/chat/completions')
+        .send({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('envelope_invalid');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('legacy explicit-required path still returns 403 without envelope', async () => {
       const forwarderMiddleware = createForwarder({
         baseUrl: 'http://localhost:20132/v1',
         requireExecutionEnvelope: true,

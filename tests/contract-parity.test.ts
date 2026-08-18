@@ -93,5 +93,51 @@ describe('canonical routing contract parity', () => {
         enforceExecutionEnvelope(validEnvelope, { model: 'gpt-4o' }, { estimatedCostUsd: 2.0 })
       ).toThrow(ExecutionEnvelopeError);
     });
+
+    it('rejects unknown top-level envelope fields', () => {
+      const tampered = { ...validEnvelope, injected_capability: 'admin' };
+      expect(() => enforceExecutionEnvelope(tampered, { model: 'gpt-4o' })).toThrow(
+        ExecutionEnvelopeError
+      );
+      try {
+        enforceExecutionEnvelope(tampered, { model: 'gpt-4o' });
+      } catch (err: any) {
+        expect(err.code).toBe('envelope_invalid');
+      }
+    });
+
+    it('rejects unknown nested constraint fields', () => {
+      const tampered = {
+        ...validEnvelope,
+        execution_constraints: {
+          ...validEnvelope.execution_constraints,
+          allow_everything: true,
+        },
+      };
+      expect(() => enforceExecutionEnvelope(tampered, { model: 'gpt-4o' })).toThrow(
+        ExecutionEnvelopeError
+      );
+      try {
+        enforceExecutionEnvelope(tampered, { model: 'gpt-4o' });
+      } catch (err: any) {
+        expect(err.code).toBe('envelope_invalid');
+      }
+    });
+
+    it('rejects malformed non-object constraints', () => {
+      const malformed = { ...validEnvelope, execution_constraints: null };
+      expect(() => enforceExecutionEnvelope(malformed, { model: 'gpt-4o' })).toThrow(
+        ExecutionEnvelopeError
+      );
+      const arrayConstraints = { ...validEnvelope, execution_constraints: [] };
+      expect(() => enforceExecutionEnvelope(arrayConstraints, { model: 'gpt-4o' })).toThrow(
+        ExecutionEnvelopeError
+      );
+    });
+
+    it('accepts an envelope that omits execution_constraints entirely', () => {
+      const { execution_constraints: _omitted, ...minimal } = validEnvelope;
+      expect(() => enforceExecutionEnvelope(minimal, { model: 'gpt-4o' })).not.toThrow();
+    });
   });
 });
