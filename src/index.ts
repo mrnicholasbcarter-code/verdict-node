@@ -3,6 +3,7 @@ import * as http from 'http';
 import * as https from 'https';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
 import { adaptRoutingDecision } from './adapters/contract-to-middleware';
+import { enforceExecutionEnvelope } from './middleware/forwarder';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -327,7 +328,7 @@ export type OpenAIChatCompletionChunk = z.infer<typeof OpenAIChatCompletionChunk
 export interface ProxyRequestLike {
   body?: unknown;
   headers?: Record<string, string | string[] | undefined>;
-  llmRouter?: { decision?: Partial<MiddlewareRoutingDecision> };
+  llmRouter?: { decision?: Partial<MiddlewareRoutingDecision>; executionEnvelope?: unknown };
 }
 
 export interface ProxyResponseLike {
@@ -364,6 +365,10 @@ export interface GatewayConfig {
   transportAdapter?: TransportAdapterConfig;
   decisionEndpoint?: string;
   decisionTimeoutMs?: number;
+  /** Require a Core routing decision before forwarding. Defaults to `true`
+   * (fail closed). Set to `false` explicitly to enable heuristic routing
+   * for compatibility-only deployments. */
+  requireCoreDecision?: boolean;
 }
 
 export type TransportAdapterKind = 'openai-compatible' | 'omniroute-documented';
@@ -404,6 +409,8 @@ export class LlmGateNode {
   private transportAdapter: NormalizedTransportAdapter;
   private decisionEndpoint: string | null;
   private decisionTimeoutMs: number;
+  /** Require a Core routing decision. Defaults to `true` (fail closed). */
+  private requireCoreDecision: boolean;
   private autoDetectorRan = false;
 
   private usageCache: Record<string, { at: number; data: any }> = {};
@@ -429,6 +436,7 @@ export class LlmGateNode {
     this.decisionEndpoint =
       config.decisionEndpoint || process.env.VERDICT_CORE_DECISION_ENDPOINT || null;
     this.decisionTimeoutMs = config.decisionTimeoutMs ?? 2000;
+    this.requireCoreDecision = config.requireCoreDecision ?? true;
     this.autoDetectDependencies();
   }
 
@@ -757,7 +765,7 @@ export class LlmGateNode {
     return true;
   }
 
-  private async fetchCoreDecision(body: unknown): Promise<MiddlewareRoutingDecision | null> {
+  private async fetchCoreDecision(body: unknown): Promise<CanonicalRoutingDecision | null> {
     if (!this.decisionEndpoint) return null;
 
     const response = await fetch(this.decisionEndpoint, {
@@ -777,7 +785,7 @@ export class LlmGateNode {
     if (route.availability === 'unavailable' || route.availability === 'denied') return null;
     if (route.decision === 'denied' || route.decision === 'unavailable') return null;
 
-    return adaptRoutingDecision(canonical);
+    return canonical;
   }
 
   /**
@@ -788,12 +796,19 @@ export class LlmGateNode {
     return async (req: any, res: any, next: any) => {
       const start = Date.now();
       try {
-        const coreDecision = await this.fetchCoreDecision(req.body);
-        if (this.decisionEndpoint && !coreDecision) {
-          return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
-        }
-        if (coreDecision) {
-          req.llmRouter = { decision: { ...coreDecision, latencyMs: Date.now() - start } };
+        const canonical = await this.fetchCoreDecision(req.body);
+        if (!canonical) {
+          if (this.requireCoreDecision) {
+            return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
+          }
+          // Compatibility path: allow heuristic routing only when explicitly opted out
+        } else {
+          const adapted = adaptRoutingDecision(canonical);
+          const envelope = (canonical as Record<string, unknown>).execution_envelope as unknown;
+          req.llmRouter = {
+            decision: { ...adapted, latencyMs: Date.now() - start },
+            executionEnvelope: envelope,
+          };
           return next();
         }
 
@@ -811,7 +826,7 @@ export class LlmGateNode {
         };
         next();
       } catch (_err) {
-        if (this.decisionEndpoint) {
+        if (this.requireCoreDecision) {
           return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
         }
         req.llmRouter = {
@@ -1003,6 +1018,23 @@ export class LlmGateNode {
           error: 'Invalid OpenAI chat completion request.',
           details: parsedRequest.error.issues,
         });
+      }
+
+      // Enforce Core execution envelope before any upstream fetch.
+      // Only enforced when a Core decision (and thus envelope) is available.
+      // When requireCoreDecision=false (compatibility path), no envelope exists and enforcement is skipped.
+      const envelope = req.llmRouter?.executionEnvelope;
+      if (envelope !== undefined) {
+        try {
+          enforceExecutionEnvelope(envelope, parsedRequest.data, { required: true });
+        } catch (err) {
+          if (err instanceof Error && 'code' in err) {
+            return res.status(403).json({ error: err.message, code: (err as any).code });
+          }
+          return res
+            .status(403)
+            .json({ error: 'Execution envelope validation failed', code: 'envelope_invalid' });
+        }
       }
 
       const ladder = await this.buildDynamicLadder(tier);

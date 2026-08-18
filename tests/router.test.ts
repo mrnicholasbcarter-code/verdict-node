@@ -147,7 +147,10 @@ const validChunk = {
 
 function createApp() {
   const app = express();
-  const gateway = new LlmGateNode('cc/claude-opus-4-8');
+  const gateway = new LlmGateNode({
+    primaryModel: 'cc/claude-opus-4-8',
+    requireCoreDecision: false,
+  });
 
   app.use(express.json());
   app.post(
@@ -176,7 +179,7 @@ describe('LlmGateNode', () => {
     process.env = originalEnv;
   });
   const createGatewayForProxyTests = () => {
-    const gateway = new LlmGateNode({ apiKey: 'secret-token' });
+    const gateway = new LlmGateNode({ apiKey: 'secret-token', requireCoreDecision: false });
     jest.spyOn(gateway as any, 'buildDynamicLadder').mockResolvedValue(['fallback-model']);
     return gateway;
   };
@@ -442,12 +445,12 @@ describe('LlmGateNode', () => {
   });
 
   it('normalizes documented transport adapter defaults', () => {
-    const defaultGateway = new LlmGateNode();
+    const defaultGateway = new LlmGateNode({ requireCoreDecision: false });
     expect((defaultGateway as any).primaryModel).toBe('cc/claude-opus-4-8');
   });
 
   it('uses the filtered OmniRoute defaults without inventing credentials', () => {
-    const defaultGateway = new LlmGateNode();
+    const defaultGateway = new LlmGateNode({ requireCoreDecision: false });
     expect((defaultGateway as any).baseUrl).toBe('http://127.0.0.1:20132/v1');
     expect((defaultGateway as any).usageUrl).toBe('http://127.0.0.1:20132/api');
     expect((defaultGateway as any).apiKey).toBe(
@@ -465,6 +468,7 @@ describe('LlmGateNode', () => {
         usagePathTemplate: '/usage/{connectionId}',
         timeoutMs: 1234,
       },
+      requireCoreDecision: false,
     });
 
     expect((gateway as any).getProviderConnIds()).toEqual({ openai: 'conn-openai' });
@@ -491,6 +495,7 @@ describe('LlmGateNode', () => {
     const gateway = new LlmGateNode({
       apiKey: 'secret-token',
       transportAdapter: { kind: 'omniroute-documented' },
+      requireCoreDecision: false,
     });
 
     const ids = await (gateway as any).discoverCapabilities(true);
@@ -511,6 +516,7 @@ describe('LlmGateNode', () => {
 
     const gateway = new LlmGateNode({
       transportAdapter: { kind: 'omniroute-documented' },
+      requireCoreDecision: false,
     });
 
     const ids = await (gateway as any).discoverCapabilities(true);
@@ -530,6 +536,7 @@ describe('LlmGateNode', () => {
     const gateway = new LlmGateNode({
       apiKey: 'bad-token',
       transportAdapter: { kind: 'omniroute-documented' },
+      requireCoreDecision: false,
     });
 
     const ids = await (gateway as any).discoverCapabilities(true);
@@ -545,6 +552,7 @@ describe('LlmGateNode', () => {
 
     const gateway = new LlmGateNode({
       transportAdapter: { kind: 'omniroute-documented', timeoutMs: 10 },
+      requireCoreDecision: false,
     });
 
     await expect((gateway as any).discoverCapabilities(true)).resolves.toEqual([]);
@@ -579,6 +587,7 @@ describe('LlmGateNode', () => {
       apiKey: 'secret-token',
       providerConnIds: { openai: 'conn-openai' },
       transportAdapter: { kind: 'omniroute-documented' },
+      requireCoreDecision: false,
     });
 
     await expect((gateway as any).modelHasHeadroom('openai/gpt-4o-mini')).resolves.toBe(false);
@@ -589,6 +598,7 @@ describe('LlmGateNode', () => {
     const gateway = new LlmGateNode({
       providerConnIds: { openai: 'conn-openai' },
       transportAdapter: { kind: 'openai-compatible' },
+      requireCoreDecision: false,
     });
 
     await expect((gateway as any).getUsageForProvider('openai')).resolves.toBeNull();
@@ -597,7 +607,7 @@ describe('LlmGateNode', () => {
 
   it('handles missing req.body gracefully by falling back to empty object serialization', async () => {
     const app = express();
-    const gateway = new LlmGateNode('custom/model-1');
+    const gateway = new LlmGateNode({ primaryModel: 'custom/model-1', requireCoreDecision: false });
 
     // Intentionally omit express.json() to leave req.body undefined
     app.post(
@@ -689,7 +699,10 @@ describe('LlmGateNode', () => {
       ],
     ])('falls back to primary model (fail-open strategy) for %s', async (_name, setupFn) => {
       const app = express();
-      const gateway = new LlmGateNode('cc/claude-opus-4-8');
+      const gateway = new LlmGateNode({
+        primaryModel: 'cc/claude-opus-4-8',
+        requireCoreDecision: false,
+      });
 
       app.use(express.json());
       app.use((req, res, next) => {
