@@ -827,8 +827,8 @@ describe('LlmGateNode', () => {
   });
 
   describe('Next.js /api compatibility', () => {
-    it('handles a Next.js-like /api route without Express next()', async () => {
-      const handler = createNextApiHandler({ apiKey: 'secret-token' });
+    it('handles a Next.js-like /api route without Express next() (compatibility mode)', async () => {
+      const handler = createNextApiHandler({ apiKey: 'secret-token', requireCoreDecision: false });
       jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
         if (String(url).endsWith('/models')) {
           return new Response(JSON.stringify({ data: [] }), { status: 200 });
@@ -859,6 +859,69 @@ describe('LlmGateNode', () => {
       expect(recorder.statusCode).toBe(405);
       expect(recorder.headers.get('Allow')).toBe('POST');
       expect(recorder.jsonPayload).toEqual({ error: 'Method Not Allowed' });
+    });
+
+    it('returns 503 and does NOT call upstream when Core decision unavailable (requireCoreDecision=true)', async () => {
+      const handler = createNextApiHandler({ requireCoreDecision: true });
+      const recorder = createProxyResponseRecorder();
+      const fetchCalls: string[] = [];
+
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.endsWith('/chat/completions')) {
+          return new Response(JSON.stringify(validResponse), { status: 200 });
+        }
+        // Core decision endpoint returns failure/no decision
+        return new Response(JSON.stringify({ error: 'no decision' }), { status: 500 });
+      });
+
+      await handler(
+        {
+          method: 'POST',
+          body: validRequest,
+          headers: { accept: 'application/json' },
+        },
+        recorder.res
+      );
+
+      expect(recorder.statusCode).toBe(503);
+      expect(recorder.jsonPayload).toEqual({ error: 'Routing decision unavailable or denied.' });
+      // Verify NO upstream fetch to /chat/completions was made
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    it('returns 503 and does NOT call upstream when Core decision denied (requireCoreDecision=true)', async () => {
+      const handler = createNextApiHandler({ requireCoreDecision: true });
+      const recorder = createProxyResponseRecorder();
+      const fetchCalls: string[] = [];
+
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.endsWith('/chat/completions')) {
+          return new Response(JSON.stringify(validResponse), { status: 200 });
+        }
+        // Core decision endpoint returns denied
+        return new Response(
+          JSON.stringify({ selected_route: { decision: 'denied', availability: 'unavailable' } }),
+          { status: 200 }
+        );
+      });
+
+      await handler(
+        {
+          method: 'POST',
+          body: validRequest,
+          headers: { accept: 'application/json' },
+        },
+        recorder.res
+      );
+
+      expect(recorder.statusCode).toBe(503);
+      expect(recorder.jsonPayload).toEqual({ error: 'Routing decision unavailable or denied.' });
+      // Verify NO upstream fetch to /chat/completions was made
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
     });
   });
 
