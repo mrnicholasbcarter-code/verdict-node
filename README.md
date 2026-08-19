@@ -74,6 +74,10 @@ import { createForwarder } from '@bodanglin/verdict-node/middleware';
 const app = express();
 app.use(express.json());
 
+// Obtain these values from independent trusted Core outputs.
+const coreEnvelope: unknown = await loadCoreEnvelope();
+const trustedPolicyDigest = await loadTrustedPolicyDigest();
+
 app.use(
   '/v1',
   createForwarder({
@@ -89,7 +93,7 @@ app.listen(3000, () => console.log('verdict-node listening on :3000'));
 
 `executionEnvelope` is currently configured on the middleware instance. Create or scope middleware instances so an envelope cannot be reused for unrelated requests, and derive `trustedPolicyDigest` from an independent trusted policy source rather than from the envelope itself. `requireExecutionEnvelope` defaults to `true`; setting it to `false` is an explicit compatibility opt-out, not Core-authorized execution.
 
-### Next.js `/api` route
+### Next.js `/api` route — Currently Not Fail-Closed
 
 ```typescript
 // pages/api/chat/completions.ts
@@ -102,7 +106,7 @@ export default createNextApiHandler({
 });
 ```
 
-The gateway requires a Core routing decision by default. Set `decisionEndpoint` or `VERDICT_CORE_DECISION_ENDPOINT`; without either, requests receive HTTP 503. `requireCoreDecision: false` enables local heuristic compatibility routing and is not Core-authorized execution.
+**Critical limitation:** The current `createNextApiHandler` implementation does **not** stop after a Core-decision denial. When `middleware()` writes HTTP 503 (no decision available or denied), it returns without calling `next()`, but `nextApiHandler()` unconditionally invokes `proxy()` afterward. The proxy path skips envelope validation when no envelope is present and may fetch upstream. **Do not treat this handler as fail-closed.** A source-level fix with regression test is tracked in NOD-002.
 
 ---
 
@@ -150,7 +154,7 @@ The standalone Express forwarder validates the configured envelope before its fi
 
 ### `createNextApiHandler(config: GatewayConfig): NextApiHandlerLike`
 
-The higher-level gateway requests a Core routing decision by default and returns HTTP 503 when no decision is available. If a returned decision contains an envelope, the gateway validates it before forwarding. Current limitations tracked by NOD-002 include a missing-envelope enforcement gap, locally substituted ladder models that are not revalidated against the envelope, and missing policy-digest integrity evidence on this path.
+The higher-level gateway **intends** to request a Core routing decision by default and return HTTP 503 when no decision is available. However, the current implementation has a critical defect: after `middleware()` writes a 503 response (no decision or denied), it does not call `next()`, but `nextApiHandler()` unconditionally proceeds to call `proxy()`. The proxy path skips envelope validation when no envelope is attached and may execute an upstream fetch. **This path is not fail-closed.** Current limitations tracked by NOD-002 include this continuation-after-503 defect, a missing-envelope enforcement gap, locally substituted ladder models that are not revalidated against the envelope, and missing policy-digest integrity evidence on this path.
 
 ### Types
 
@@ -169,7 +173,7 @@ import type {
 
 Verdict Core is the intended authority for policy-gated execution; Node is an edge and transport adapter. Core and Node do not yet share a fully reconciled, published `ExecutionEnvelope` contract or verified issuance-to-enforcement fixture. Until that work is complete, treat the envelope support here as partial enforcement rather than proof of end-to-end Core authorization.
 
-For the higher-level gateway, point `decisionEndpoint` (or `VERDICT_CORE_DECISION_ENDPOINT`) at the Core routing-decision endpoint. The standalone forwarder instead accepts an envelope through `ForwarderConfig.executionEnvelope` and requires one by default. Both APIs expose explicit compatibility opt-outs; those modes are not policy-gated execution. NOD-002 remains open until shared Core fixtures, complete envelope parity, and removal of every production-path policy bypass are verified.
+For the higher-level gateway, point `decisionEndpoint` (or `VERDICT_CORE_DECISION_ENDPOINT`) at the Core routing-decision endpoint. The standalone forwarder instead accepts an envelope through `ForwarderConfig.executionEnvelope` and requires one by default. Both APIs expose explicit compatibility opt-outs; those modes are not policy-gated execution. **Critical defect:** `createNextApiHandler` currently continues into `proxy()` after `middleware()` writes HTTP 503, bypassing envelope validation and potentially forwarding to upstream. NOD-002 remains open until shared Core fixtures, complete envelope parity, the continuation-after-503 fix, and removal of every production-path policy bypass are verified.
 
 ---
 
