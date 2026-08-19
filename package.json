@@ -57,7 +57,7 @@
     "zod"
   ],
   "dependencies": {
-    "@bodanglin/verdict-contracts": "file:../../../../../dev/verdict-core-worktree/contracts",
+    "@bodanglin/verdict-contracts": "^0.1.0",
     "@types/express": "^5.0.6",
     "zod": "^3.25.76"
   },
