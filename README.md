@@ -1,17 +1,16 @@
-# @bodanglin/verdict-node — TypeScript Middleware for Verdict Routing
+# @bodanglin/verdict-node — TypeScript Gateway Adapter
 
 [![npm](https://img.shields.io/npm/v/@bodanglin/verdict-node.svg)](https://www.npmjs.com/package/@bodanglin/verdict-node)
 [![TypeScript](https://img.shields.io/badge/typescript-strict-blue.svg)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-139%20passing-brightgreen.svg)](<>)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **Enterprise LLM Criticality Router middleware for Express, Next.js** — policy-gated, capability-aware routing with OpenAI-compatible upstream proxy.
+> **OpenAI-compatible gateway adapter for Express and Next.js** — includes pre-forward execution-envelope validation.
 
 ---
 
 ## What is @bodanglin/verdict-node?
 
-`@bodanglin/verdict-node` is the TypeScript gateway integration layer for the **Verdict** ecosystem. It accepts an Express/Next.js request, classifies criticality, discovers models from your configured OpenAI-compatible upstream (default: OmniRoute at `http://localhost:20128/v1`), rewrites the selected model, and forwards non-streaming SSE responses.
+`@bodanglin/verdict-node` is the TypeScript gateway adapter for the **Verdict** ecosystem. Verdict Core owns policy and execution authorization; Node supplies transport middleware that can validate an `ExecutionEnvelope` before forwarding a request to an OpenAI-compatible upstream. The canonical cross-language envelope contract and Core issuance path are still being reconciled, so this alpha must not be represented as complete end-to-end policy enforcement. Node also retains local classification, discovery, ranking, and fallback behavior for compatibility routing; those heuristics are not Core authorization.
 
 **Works with any OpenAI-compatible client**: Claude Code, Codex, Cursor, Cline, Hermes, Agents SDK, raw HTTP.
 
@@ -21,12 +20,13 @@
 
 **Alpha** — not production-ready. Current implementation provides:
 
-- Heuristic criticality classification
+- Fail-closed `ExecutionEnvelope` validation in the standalone forwarder by default
+- A shared pre-forward envelope check for streaming and non-streaming requests when an envelope is supplied to the gateway
 - Zod request/response schemas
-- Model catalog discovery from configured upstream
+- Heuristic criticality classification and model catalog discovery for compatibility routing
 - Bounded fallback ladder for selected HTTP/network failures
-- Explicit fail-open behavior: inconclusive model discovery, missing quota/headroom data, unavailable usage APIs, and middleware classification errors keep routing on the safe primary/fallback path instead of blocking client traffic
-- Non-streaming SSE forwarding
+- Explicit compatibility opt-outs for deployments that do not yet require Core decisions or envelopes
+- Streaming SSE and non-streaming JSON forwarding
 - In-memory score cache (process-local)
 
 **Missing** (tracked on release board):
@@ -65,126 +65,115 @@ yarn add @bodanglin/verdict-node
 
 ## Quick Start
 
+### Express standalone forwarder
+
 ```typescript
 import express from 'express';
-import { verdictMiddleware } from '@bodanglin/verdict-node/middleware';
+import { createForwarder } from '@bodanglin/verdict-node/middleware';
 
 const app = express();
 app.use(express.json());
 
-// Mount Verdict middleware
+// Obtain these values from independent trusted Core outputs.
+const coreEnvelope: unknown = await loadCoreEnvelope();
+const trustedPolicyDigest = await loadTrustedPolicyDigest();
+
 app.use(
   '/v1',
-  verdictMiddleware({
-    upstream: 'http://localhost:20128/v1', // OmniRoute or your proxy
-    criticality: 'auto', // auto | low | medium | high | critical
+  createForwarder({
+    baseUrl: process.env.VERDICT_UPSTREAM ?? 'http://127.0.0.1:20132/v1',
+    apiKey: process.env.OMNIROUTE_API_KEY,
+    executionEnvelope: coreEnvelope,
+    expectedPolicyDigest: trustedPolicyDigest,
   })
 );
 
 app.listen(3000, () => console.log('verdict-node listening on :3000'));
 ```
 
-Next.js `/api` route:
+`executionEnvelope` is currently configured on the middleware instance. Create or scope middleware instances so an envelope cannot be reused for unrelated requests, and derive `trustedPolicyDigest` from an independent trusted policy source rather than from the envelope itself. `requireExecutionEnvelope` defaults to `true`; setting it to `false` is an explicit compatibility opt-out, not Core-authorized execution.
+
+### Next.js `/api` route — Currently Not Fail-Closed
 
 ```typescript
 // pages/api/chat/completions.ts
-import { createNextApiHandler } from '@verdict/node';
+import { createNextApiHandler } from '@bodanglin/verdict-node';
 
 export default createNextApiHandler({
   baseUrl: process.env.OMNIROUTE_BASE_URL ?? 'http://127.0.0.1:20132/v1',
   apiKey: process.env.OMNIROUTE_API_KEY,
+  decisionEndpoint: process.env.VERDICT_CORE_DECISION_ENDPOINT,
 });
 ```
 
-```bash
-# Start OmniRoute (if not running)
-docker run -d -p 20128:20128 omnibus/omniroute
-
-# Start your app
-node dist/index.js
-```
+**Critical limitation:** The current `createNextApiHandler` implementation does **not** stop after a Core-decision denial. When `middleware()` writes HTTP 503 (no decision available or denied), it returns without calling `next()`, but `nextApiHandler()` unconditionally invokes `proxy()` afterward. The proxy path skips envelope validation when no envelope is present and may fetch upstream. **Do not treat this handler as fail-closed.** A source-level fix with regression test is tracked in NOD-002.
 
 ---
 
 ## Configuration
 
+### `ForwarderConfig`
+
 ```typescript
-import { verdictMiddleware, VerdictConfig } from '@bodanglin/verdict-node/middleware';
+import { createForwarder, type ForwarderConfig } from '@bodanglin/verdict-node/middleware';
 
-const config: VerdictConfig = {
-  // Upstream OpenAI-compatible endpoint
-  upstream: process.env.VERDICT_UPSTREAM ?? 'http://localhost:20128/v1',
-
-  // Criticality classification: 'auto' | 'low' | 'medium' | 'high' | 'critical'
-  criticality: 'auto',
-
-  // Optional: Custom model catalog (bypasses discovery)
-  modelCatalog: [
-    { id: 'anthropic/claude-3-opus-20240229', capabilities: ['tools', 'vision'] },
-    { id: 'openai/gpt-4o', capabilities: ['tools', 'vision'] },
-    { id: 'auto/best-coding', capabilities: ['tools', 'reasoning'] },
-  ],
-
-  // Fallback ladder (ordered)
-  fallbacks: [
-    { model: 'auto/best-fast', maxRetries: 2 },
-    { model: 'auto/best-reasoning', maxRetries: 1 },
-  ],
-
-  // Request timeout
-  timeoutMs: 30000,
-
-  // Enable request/response logging
-  debug: process.env.NODE_ENV === 'development',
+const config: ForwarderConfig = {
+  baseUrl: process.env.VERDICT_UPSTREAM ?? 'http://127.0.0.1:20132/v1',
+  apiKey: process.env.OMNIROUTE_API_KEY,
+  executionEnvelope: coreEnvelope,
+  expectedPolicyDigest: trustedPolicyDigest,
+  timeoutMs: 30_000,
+  maxRetries: 3,
 };
 
-app.use('/v1', verdictMiddleware(config));
+app.use('/v1', createForwarder(config));
+```
+
+### `GatewayConfig`
+
+```typescript
+import { createNextApiHandler, type GatewayConfig } from '@bodanglin/verdict-node';
+
+const config: GatewayConfig = {
+  baseUrl: process.env.OMNIROUTE_BASE_URL,
+  apiKey: process.env.OMNIROUTE_API_KEY,
+  decisionEndpoint: process.env.VERDICT_CORE_DECISION_ENDPOINT,
+  decisionTimeoutMs: 2_000,
+};
+
+export default createNextApiHandler(config);
 ```
 
 ---
 
 ## API
 
-### `verdictMiddleware(config: VerdictConfig): express.RequestHandler`
+### `createForwarder(config: ForwarderConfig): express.RequestHandler`
 
-Express middleware that:
+The standalone Express forwarder validates the configured envelope before its first upstream fetch. By default it rejects missing, invalid, expired, or out-of-bounds envelopes with machine-readable denial codes. It then forwards non-streaming JSON or streaming SSE responses without substituting the request model.
 
-1. Intercepts `POST /v1/chat/completions`
-2. Classifies request criticality (heuristic or explicit header `x-verdict-criticality`)
-3. Discovers/uses model catalog from upstream
-4. Selects best model via Verdict Core logic (or local heuristic)
-5. Rewrites `model` field in request body
-6. Forwards to upstream, streams response back
+### `createNextApiHandler(config: GatewayConfig): NextApiHandlerLike`
+
+The higher-level gateway **intends** to request a Core routing decision by default and return HTTP 503 when no decision is available. However, the current implementation has a critical defect: after `middleware()` writes a 503 response (no decision or denied), it does not call `next()`, but `nextApiHandler()` unconditionally proceeds to call `proxy()`. The proxy path skips envelope validation when no envelope is attached and may execute an upstream fetch. **This path is not fail-closed.** Current limitations tracked by NOD-002 include this continuation-after-503 defect, a missing-envelope enforcement gap, locally substituted ladder models that are not revalidated against the envelope, and missing policy-digest integrity evidence on this path.
 
 ### Types
 
 ```typescript
-// From @bodanglin/verdict-node
+import type { GatewayConfig, OpenAIChatCompletionRequest } from '@bodanglin/verdict-node';
 import type {
-  VerdictConfig,
-  ModelInfo,
-  CriticalityLevel,
-  ChatCompletionRequest,
-  ChatCompletionResponse,
-} from '@bodanglin/verdict-node';
+  ForwarderConfig,
+  OpenAIChatCompletionResponse,
+  OpenAIChatCompletionChunk,
+} from '@bodanglin/verdict-node/middleware';
 ```
 
 ---
 
 ## Integration with Verdict Core
 
-For full policy-gated routing (not just heuristic), run Verdict Core alongside:
+Verdict Core is the intended authority for policy-gated execution; Node is an edge and transport adapter. Core and Node do not yet share a fully reconciled, published `ExecutionEnvelope` contract or verified issuance-to-enforcement fixture. Until that work is complete, treat the envelope support here as partial enforcement rather than proof of end-to-end Core authorization.
 
-```bash
-# Terminal 1: Verdict Core API
-verdict serve --host 0.0.0.0 --port 8000
-
-# Terminal 2: Verdict Node middleware pointing to Core
-export VERDICT_UPSTREAM=http://localhost:8000/v1
-node dist/index.js
-```
-
-Then `@verdict/node` will use Core's `/v1/route` endpoint for model selection.
+For the higher-level gateway, point `decisionEndpoint` (or `VERDICT_CORE_DECISION_ENDPOINT`) at the Core routing-decision endpoint. The standalone forwarder instead accepts an envelope through `ForwarderConfig.executionEnvelope` and requires one by default. Both APIs expose explicit compatibility opt-outs; those modes are not policy-gated execution. **Critical defect:** `createNextApiHandler` currently continues into `proxy()` after `middleware()` writes HTTP 503, bypassing envelope validation and potentially forwarding to upstream. NOD-002 remains open until shared Core fixtures, complete envelope parity, the continuation-after-503 fix, and removal of every production-path policy bypass are verified.
 
 ---
 
@@ -217,18 +206,16 @@ npm run verify:package
 ```
 verdict-node/
 ├── src/
-│   ├── index.ts              # Main exports
-│   ├── middleware/           # Express middleware
-│   │   ├── index.ts
-│   │   ├── criticality.ts    # Criticality classification
-│   │   ├── catalog.ts        # Model catalog discovery
-│   │   ├── routing.ts        # Model selection logic
-│   │   └── proxy.ts          # SSE proxy forwarding
-│   ├── types/                # Zod schemas + TS types
-│   └── utils/
-├── tests/                    # 139 tests
-├── scripts/                  # verify-package.mjs
-├── dist/                     # Build output
+│   ├── index.ts                         # Gateway and Next.js exports
+│   ├── adapters/
+│   │   └── contract-to-middleware.ts    # Canonical-decision adapter
+│   └── middleware/
+│       ├── index.ts                     # Middleware exports
+│       ├── forwarder.ts                 # Express JSON/SSE forwarder
+│       └── validator.ts                 # Validation helpers
+├── tests/
+├── scripts/                             # Package verification
+├── docs/adr/
 └── package.json
 ```
 

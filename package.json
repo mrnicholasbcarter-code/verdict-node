@@ -1,7 +1,7 @@
 {
   "name": "@bodanglin/verdict-node",
   "version": "0.1.0",
-  "description": "Enterprise LLM Criticality Router middleware for Express, Next.js — policy-gated, availability-aware routing control plane",
+  "description": "OpenAI-compatible gateway adapter with execution-envelope validation for Express and Next.js",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,7 +49,7 @@
     "llm",
     "routing",
     "ai",
-    "control-plane",
+    "gateway-adapter",
     "safety",
     "middleware",
     "express",
