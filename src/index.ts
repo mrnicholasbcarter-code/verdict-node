@@ -790,16 +790,19 @@ export class LlmGateNode {
 
   /**
    * Intercepts preliminary evaluations to log heuristic latency.
-   * @returns Express-compatible request handler.
+   * @returns Express-compatible request handler that returns true if authorized to continue, false if response was sent.
    */
-  public middleware() {
-    return async (req: any, res: any, next: any) => {
+  public middleware(): (req: any, res: any, next: any) => Promise<boolean> {
+    return async (req: any, res: any, next: any): Promise<boolean> => {
       const start = Date.now();
       try {
         const canonical = await this.fetchCoreDecision(req.body);
         if (!canonical) {
           if (this.requireCoreDecision) {
-            return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
+            return (
+              res.status(503).json({ error: 'Routing decision unavailable or denied.' }),
+              false
+            );
           }
           // Compatibility path: allow heuristic routing only when explicitly opted out
         } else {
@@ -809,7 +812,8 @@ export class LlmGateNode {
             decision: { ...adapted, latencyMs: Date.now() - start },
             executionEnvelope: envelope,
           };
-          return next();
+          next();
+          return true;
         }
 
         const body = req.body || {};
@@ -825,9 +829,13 @@ export class LlmGateNode {
           },
         };
         next();
+        return true;
       } catch (_err) {
         if (this.requireCoreDecision) {
-          return res.status(503).json({ error: 'Routing decision unavailable or denied.' });
+          return (
+            res.status(503).json({ error: 'Routing decision unavailable or denied.' }),
+            false
+          );
         }
         req.llmRouter = {
           decision: {
@@ -839,6 +847,7 @@ export class LlmGateNode {
           },
         };
         next();
+        return true;
       }
     };
   }
@@ -977,6 +986,7 @@ export class LlmGateNode {
   /**
    * Next.js /api route handler for POST /api/* style routes.
    * Mirrors Express composition: evaluate routing metadata, then proxy.
+   * Only calls proxy() if middleware() authorizes continuation (returns true).
    */
   public nextApiHandler(): NextApiHandlerLike {
     const middleware = this.middleware();
@@ -989,11 +999,14 @@ export class LlmGateNode {
         return;
       }
 
-      await middleware(req, res, (error: unknown) => {
+      const authorized = await middleware(req, res, (error: unknown) => {
         if (error) {
           throw error;
         }
       });
+      if (!authorized) {
+        return; // Response already sent by middleware (e.g., 503)
+      }
       await proxy(req, res, (error: unknown) => {
         if (error) {
           throw error;
