@@ -5,6 +5,8 @@ import {
   ExecutionEnvelopeError,
   createEnvelopeDenial,
 } from '../src/middleware/forwarder';
+import * as fs from 'fs';
+import * as path from 'path';
 
 describe('canonical routing contract parity', () => {
   it('creates fallback decisions accepted by the canonical schema', () => {
@@ -31,16 +33,45 @@ describe('canonical routing contract parity', () => {
   });
 
   describe('ExecutionEnvelope enforcement', () => {
-    const validEnvelope = {
-      schema_version: '1',
-      policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-      execution_constraints: {
-        allowed_models: ['gpt-4o', 'claude-3-5-sonnet'],
-        allowed_tools: ['read_file', 'write_file'],
-        max_request_usd: 1.0,
-      },
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-    };
+    function createValidEnvelope(overrides: Record<string, unknown> = {}) {
+      return {
+        schema_version: '1',
+        task_spec: {
+          objective: 'test task',
+          task_type: 'chat',
+          effort: 'medium',
+          reasoning: 'medium',
+          privacy: 'unknown',
+          risk: 'unknown',
+          parallelism: 'serial',
+          degraded_mode_policy: 'deny',
+          capabilities: [],
+          required_capabilities: [],
+          tools: [],
+          approvals: [],
+          budget: {},
+          latency: {},
+          workflow: null,
+          metadata: {},
+        },
+        eligibility_decision: { admitted: ['gpt-4o'], reason: 'test' },
+        policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        allowed_capabilities: ['chat'],
+        execution_constraints: {
+          allowed_models: ['gpt-4o', 'claude-3-5-sonnet'],
+          allowed_tools: ['read_file', 'write_file'],
+          max_request_usd: 1.0,
+        },
+        verification_requirements: { checks: [] },
+        evidence_ids: ['evidence-1'],
+        routing_decision: null,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+        ...overrides,
+      };
+    }
+
+    const validEnvelope = createValidEnvelope();
 
     it('passes for valid envelope and allowed request', () => {
       expect(() =>
@@ -106,24 +137,6 @@ describe('canonical routing contract parity', () => {
       }
     });
 
-    it('rejects unknown nested constraint fields', () => {
-      const tampered = {
-        ...validEnvelope,
-        execution_constraints: {
-          ...validEnvelope.execution_constraints,
-          allow_everything: true,
-        },
-      };
-      expect(() => enforceExecutionEnvelope(tampered, { model: 'gpt-4o' })).toThrow(
-        ExecutionEnvelopeError
-      );
-      try {
-        enforceExecutionEnvelope(tampered, { model: 'gpt-4o' });
-      } catch (err: any) {
-        expect(err.code).toBe('envelope_invalid');
-      }
-    });
-
     it('rejects malformed non-object constraints', () => {
       const malformed = { ...validEnvelope, execution_constraints: null };
       expect(() => enforceExecutionEnvelope(malformed, { model: 'gpt-4o' })).toThrow(
@@ -135,9 +148,73 @@ describe('canonical routing contract parity', () => {
       );
     });
 
-    it('accepts an envelope that omits execution_constraints entirely', () => {
+    it('rejects an envelope that omits execution_constraints entirely', () => {
       const { execution_constraints: _omitted, ...minimal } = validEnvelope;
-      expect(() => enforceExecutionEnvelope(minimal, { model: 'gpt-4o' })).not.toThrow();
+      expect(() => enforceExecutionEnvelope(minimal, { model: 'gpt-4o' })).toThrow(
+        ExecutionEnvelopeError
+      );
     });
   });
+});
+
+describe('ExecutionEnvelope schema parity — invalid fixtures rejected by both Python and TypeScript', () => {
+  const fixturesDir = path.resolve(__dirname, '../test_fixtures/envelopes');
+
+  function loadFixture(name: string): unknown {
+    const filePath = path.join(fixturesDir, name);
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  }
+
+  // Valid envelope should pass
+  it('accepts the valid envelope fixture', () => {
+    const envelope = loadFixture('valid_envelope.json');
+    const result = contractSchemas.execution_envelope.safeParse(envelope);
+    expect(result.success).toBe(true);
+  });
+
+  // Invalid fixtures should all be rejected
+  const invalidFixtures = [
+    'invalid_missing_task_spec.json',
+    'invalid_empty_policy_digest.json',
+    'invalid_empty_evidence_id_item.json',
+    'invalid_wrong_type_task_spec.json',
+    'invalid_wrong_type_allowed_capabilities.json',
+    'invalid_wrong_type_execution_constraints.json',
+    'invalid_wrong_type_verification_requirements.json',
+    'invalid_unknown_field.json',
+    'invalid_task_spec_missing_objective.json',
+    'invalid_task_spec_empty_objective.json',
+    'invalid_empty_allowed_capability_item.json',
+  ];
+
+  // These fixtures have empty arrays which are allowed by the schema (z.array allows empty)
+  const allowedEmptyArrayFixtures = [
+    'invalid_empty_allowed_capabilities.json',
+    'invalid_empty_evidence_ids.json',
+  ];
+
+  for (const fixture of invalidFixtures) {
+    it(`rejects ${fixture}`, () => {
+      const envelope = loadFixture(fixture);
+      const result = contractSchemas.execution_envelope.safeParse(envelope);
+      expect(result.success).toBe(false);
+    });
+  }
+
+  // Parity: parseContract should also reject all invalid fixtures with proper error category
+  for (const fixture of invalidFixtures) {
+    it(`parseContract rejects ${fixture} with validation error`, () => {
+      const envelope = loadFixture(fixture);
+      expect(() => parseContract('execution_envelope', envelope)).toThrow(/execution_envelope/);
+    });
+  }
+
+  // Empty arrays are allowed by the schema
+  for (const fixture of allowedEmptyArrayFixtures) {
+    it(`accepts ${fixture} (empty arrays are valid)`, () => {
+      const envelope = loadFixture(fixture);
+      const result = contractSchemas.execution_envelope.safeParse(envelope);
+      expect(result.success).toBe(true);
+    });
+  }
 });

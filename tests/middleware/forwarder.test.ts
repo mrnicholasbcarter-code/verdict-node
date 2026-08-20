@@ -755,16 +755,45 @@ describe('Forwarder Middleware', () => {
   });
 
   describe('ExecutionEnvelope Enforcement', () => {
-    const validEnvelope = {
-      schema_version: '1',
-      policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-      execution_constraints: {
-        allowed_models: ['gpt-4'],
-        allowed_tools: ['get_weather'],
-        max_request_usd: 1.0,
-      },
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-    };
+    function createValidEnvelope(overrides: Record<string, unknown> = {}) {
+      return {
+        schema_version: '1',
+        task_spec: {
+          objective: 'test task',
+          task_type: 'chat',
+          effort: 'medium',
+          reasoning: 'medium',
+          privacy: 'unknown',
+          risk: 'unknown',
+          parallelism: 'serial',
+          degraded_mode_policy: 'deny',
+          capabilities: [],
+          required_capabilities: [],
+          tools: [],
+          approvals: [],
+          budget: {},
+          latency: {},
+          workflow: null,
+          metadata: {},
+        },
+        eligibility_decision: { admitted: ['gpt-4'], reason: 'test' },
+        policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        allowed_capabilities: ['chat'],
+        execution_constraints: {
+          allowed_models: ['gpt-4'],
+          allowed_tools: ['get_weather'],
+          max_request_usd: 1.0,
+        },
+        verification_requirements: { checks: [] },
+        evidence_ids: ['evidence-1'],
+        routing_decision: null,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+        ...overrides,
+      };
+    }
+
+    const validEnvelope = createValidEnvelope();
 
     it('should allow forwarding when execution envelope is valid', async () => {
       const mockResponse = {
