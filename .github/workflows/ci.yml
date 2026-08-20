@@ -13,10 +13,18 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20.x'
+          node-version: '24.x'
           cache: 'npm'
+      - name: Clone verdict-core (canonical contracts pkg)
+        run: git clone --depth 1 https://github.com/mrnicholasbcarter-code/verdict-core.git /tmp/verdict-core
+      - name: Build canonical contracts package from verdict-core
+        run: ( cd /tmp/verdict-core/contracts && npm ci && npm run build && npm link )
       - name: Install dependencies from lockfile
         run: npm ci
+      - name: Link canonical contracts package (source of truth over stale npm release)
+        run: |
+          npm link @bodanglin/verdict-contracts
+          node -e "const s=require('@bodanglin/verdict-contracts').contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
       - name: Assert supported TypeScript/ts-jest boundary
         run: node -e "const p=require('./node_modules/typescript/package.json'); const peer=require('./node_modules/ts-jest/package.json').peerDependencies.typescript; if (!p.version.startsWith('5.9.')) throw new Error('Unsupported TypeScript '+p.version); if (peer !== '>=4.3 <7') throw new Error('Unexpected ts-jest TypeScript peer '+peer)"
       - name: Typecheck
@@ -50,7 +58,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20.x'
+          node-version: '24.x'
           cache: 'npm'
       - name: Clone verdict-core (Python source of truth + contracts pkg)
         run: git clone --depth 1 https://github.com/mrnicholasbcarter-code/verdict-core.git /tmp/verdict-core
