@@ -1,5 +1,11 @@
 import { Request, Response as ExpressResponse, NextFunction } from 'express';
 import { z } from 'zod';
+import {
+  parseContract,
+  contractSchemas,
+  type ExecutionEnvelope,
+  ContractValidationError,
+} from '@bodanglin/verdict-contracts';
 
 // Use global fetch Response type
 type FetchResponse = Response;
@@ -28,17 +34,8 @@ type FetchResponse = Response;
 // Configuration Types
 // ============================================================================
 
-export interface ExecutionEnvelope {
-  schema_version: '1';
-  policy_digest: string;
-  execution_constraints?: {
-    allowed_models?: string[];
-    allowed_tools?: string[];
-    budget_usd?: number;
-    max_request_usd?: number;
-  };
-  expires_at?: string;
-}
+// Re-export canonical ExecutionEnvelope type from @bodanglin/verdict-contracts
+export type { ExecutionEnvelope };
 
 const KNOWN_ENVELOPE_FIELDS = new Set([
   'schema_version',
@@ -117,17 +114,25 @@ export function enforceExecutionEnvelope(
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
     throw new ExecutionEnvelopeError('envelope_missing', 'Core execution envelope is required');
   }
-  const candidate = envelope as Record<string, unknown>;
-  if (candidate.schema_version !== '1' || typeof candidate.policy_digest !== 'string') {
-    throw new ExecutionEnvelopeError('envelope_invalid', 'Core execution envelope is invalid');
-  }
-  for (const key of Object.keys(candidate)) {
-    if (!KNOWN_ENVELOPE_FIELDS.has(key)) {
+  // Extract expires_at before validation (canonical schema uses created_at)
+  const candidateRaw = envelope as Record<string, unknown>;
+  const expiresAt = candidateRaw.expires_at;
+  // Strip expires_at before canonical validation (not part of canonical schema)
+  const { expires_at: _expiresAt, ...canonicalEnvelope } = candidateRaw;
+  // Validate against canonical ExecutionEnvelope schema from @bodanglin/verdict-contracts
+  let candidate: ExecutionEnvelope & { execution_constraints: Record<string, unknown> };
+  try {
+    candidate = parseContract('execution_envelope', canonicalEnvelope) as ExecutionEnvelope & {
+      execution_constraints: Record<string, unknown>;
+    };
+  } catch (error) {
+    if (error instanceof ContractValidationError) {
       throw new ExecutionEnvelopeError(
         'envelope_invalid',
-        `Core execution envelope contains unknown field: ${key}`
+        `Core execution envelope is invalid: ${error.message}`
       );
     }
+    throw error;
   }
   if (
     options.expectedPolicyDigest !== undefined &&
@@ -135,7 +140,7 @@ export function enforceExecutionEnvelope(
   ) {
     throw new ExecutionEnvelopeError('envelope_tampered', 'Core policy digest does not match');
   }
-  const expiresAt = candidate.expires_at;
+  // Check expiration using expires_at (forwarder-specific extension)
   if (
     typeof expiresAt === 'string' &&
     (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())
@@ -151,14 +156,7 @@ export function enforceExecutionEnvelope(
     );
   }
   const bounded = constraints as Record<string, unknown>;
-  for (const key of Object.keys(bounded)) {
-    if (!KNOWN_CONSTRAINT_FIELDS.has(key)) {
-      throw new ExecutionEnvelopeError(
-        'envelope_invalid',
-        `Core execution envelope constraints contain unknown field: ${key}`
-      );
-    }
-  }
+  // Note: canonical schema allows arbitrary constraint fields; we only enforce known ones
   const allowedModels = bounded.allowed_models;
   if (
     Array.isArray(allowedModels) &&

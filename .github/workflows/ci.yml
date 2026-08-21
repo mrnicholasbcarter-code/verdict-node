@@ -13,10 +13,18 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20.x'
+          node-version: '24.x'
           cache: 'npm'
+      - name: Clone verdict-core (canonical contracts pkg)
+        run: git clone --depth 1 https://github.com/mrnicholasbcarter-code/verdict-core.git /tmp/verdict-core
+      - name: Build canonical contracts package from verdict-core
+        run: ( cd /tmp/verdict-core/contracts && npm ci && npm run build && npm link )
       - name: Install dependencies from lockfile
         run: npm ci
+      - name: Link canonical contracts package (source of truth over stale npm release)
+        run: |
+          npm link @bodanglin/verdict-contracts
+          node --input-type=module -e "const s=(await import('@bodanglin/verdict-contracts')).contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
       - name: Assert supported TypeScript/ts-jest boundary
         run: node -e "const p=require('./node_modules/typescript/package.json'); const peer=require('./node_modules/ts-jest/package.json').peerDependencies.typescript; if (!p.version.startsWith('5.9.')) throw new Error('Unsupported TypeScript '+p.version); if (peer !== '>=4.3 <7') throw new Error('Unexpected ts-jest TypeScript peer '+peer)"
       - name: Typecheck
@@ -36,3 +44,46 @@ jobs:
         run: pip install "git+https://github.com/mrnicholasbcarter-code/verdict-core.git@main"
       - name: Verify compat manifest gate
         run: verdict compat check --declared .verdict/compat-manifest.json --json
+  contract-parity:
+    # NOD-002 / ADR-025: fails if TypeScript accepts an ExecutionEnvelope that
+    # Python rejects (or vice versa) on the shared invalid-envelope fixtures.
+    #
+    # The envelope Zod schema lives in verdict-core's contracts/ subpackage.
+    # The published @bodanglin/verdict-contracts npm package may lag behind
+    # main, so we build the contracts package from the verdict-core checkout
+    # and `npm link` it to guarantee the TS side tests against the canonical
+    # (source-of-truth) Zod schemas, not a stale npm release.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - name: Clone verdict-core (Python source of truth + contracts pkg)
+        run: git clone --depth 1 https://github.com/mrnicholasbcarter-code/verdict-core.git /tmp/verdict-core
+      - name: Build canonical contracts package from verdict-core
+        run: ( cd /tmp/verdict-core/contracts && npm ci && npm run build && npm link )
+      - name: Install dependencies from lockfile
+        run: npm ci
+      - name: Link canonical contracts package (source of truth over stale npm release)
+        run: |
+          npm link @bodanglin/verdict-contracts
+          node --input-type=module -e "const s=(await import('@bodanglin/verdict-contracts')).contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
+      - name: TypeScript fixture expectations (jest, ESM)
+        run: node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/contract-parity.test.ts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install verdict-core (Python source of truth)
+        run: pip install "git+https://github.com/mrnicholasbcarter-code/verdict-core.git@main"
+      - name: Fixture set matches verdict-core canonical copy
+        run: diff -r --exclude='*.py' /tmp/verdict-core/test_fixtures/envelopes test_fixtures/envelopes
+      - name: Cross-runtime verdict comparison
+        run: |
+          node scripts/envelope-parity-verdicts.mjs > /tmp/ts-verdicts.json
+          python scripts/envelope_parity_verdicts.py > /tmp/py-verdicts.json
+          if ! diff -u /tmp/py-verdicts.json /tmp/ts-verdicts.json; then
+            echo "::error::ExecutionEnvelope enforcement divergence between Python and TypeScript"
+            exit 1
+          fi

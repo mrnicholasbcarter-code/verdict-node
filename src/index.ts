@@ -2,8 +2,8 @@ import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
-import { adaptRoutingDecision } from './adapters/contract-to-middleware';
-import { enforceExecutionEnvelope } from './middleware/forwarder';
+import { adaptRoutingDecision } from './adapters/contract-to-middleware.js';
+import { enforceExecutionEnvelope } from './middleware/forwarder.js';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 

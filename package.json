@@ -1,6 +1,7 @@
 {
   "name": "@bodanglin/verdict-node",
   "version": "0.1.0",
+  "type": "module",
   "description": "OpenAI-compatible gateway adapter with execution-envelope validation for Express and Next.js",
   "license": "MIT",
   "main": "dist/index.js",
@@ -38,7 +39,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" \"*.json\" \".github/workflows/*.yml\"",
