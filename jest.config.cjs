@@ -11,6 +11,7 @@ module.exports = {
     '^.+\\.(ts|js)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json', useESM: true }],
   },
   moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@bodanglin/verdict-contracts$': '<rootDir>/node_modules/@bodanglin/verdict-contracts',
   },
   transformIgnorePatterns: ['/node_modules/(?!@bodanglin/verdict-contracts)'],

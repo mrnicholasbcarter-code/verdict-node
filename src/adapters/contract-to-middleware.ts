@@ -152,6 +152,8 @@ export function createFallbackRoutingDecision(
     request_id: null,
     policy_version: '1',
     schema_version: '1',
+    decision_id: null,
+    receipt: null,
   };
 }
 

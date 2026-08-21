@@ -7,6 +7,7 @@ import {
 } from '../src/middleware/forwarder';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'node:url';
 
 describe('canonical routing contract parity', () => {
   it('creates fallback decisions accepted by the canonical schema', () => {
@@ -158,7 +159,10 @@ describe('canonical routing contract parity', () => {
 });
 
 describe('ExecutionEnvelope schema parity — invalid fixtures rejected by both Python and TypeScript', () => {
-  const fixturesDir = path.resolve(__dirname, '../test_fixtures/envelopes');
+  const fixturesDir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../test_fixtures/envelopes'
+  );
 
   function loadFixture(name: string): unknown {
     const filePath = path.join(fixturesDir, name);
