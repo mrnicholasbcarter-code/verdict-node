@@ -1,6 +1,7 @@
 {
   "name": "@bodanglin/verdict-node",
   "version": "0.1.0",
+  "type": "module",
   "description": "OpenAI-compatible gateway adapter with execution-envelope validation for Express and Next.js",
   "license": "MIT",
   "main": "dist/index.js",

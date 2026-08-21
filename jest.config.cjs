@@ -6,8 +6,9 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   testPathIgnorePatterns: [],
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
+  extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(ts|js)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json', useESM: true, extensionsToTreatAsEsm: ['.js'] }],
+    '^.+\\.(ts|js)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json', useESM: true }],
   },
   moduleNameMapper: {
     '^@bodanglin/verdict-contracts$': '<rootDir>/node_modules/@bodanglin/verdict-contracts',

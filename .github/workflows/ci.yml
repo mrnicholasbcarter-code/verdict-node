@@ -24,7 +24,7 @@ jobs:
       - name: Link canonical contracts package (source of truth over stale npm release)
         run: |
           npm link @bodanglin/verdict-contracts
-          node -e "const s=require('@bodanglin/verdict-contracts').contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
+          node --input-type=module -e "const s=(await import('@bodanglin/verdict-contracts')).contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
       - name: Assert supported TypeScript/ts-jest boundary
         run: node -e "const p=require('./node_modules/typescript/package.json'); const peer=require('./node_modules/ts-jest/package.json').peerDependencies.typescript; if (!p.version.startsWith('5.9.')) throw new Error('Unsupported TypeScript '+p.version); if (peer !== '>=4.3 <7') throw new Error('Unexpected ts-jest TypeScript peer '+peer)"
       - name: Typecheck
@@ -69,7 +69,7 @@ jobs:
       - name: Link canonical contracts package (source of truth over stale npm release)
         run: |
           npm link @bodanglin/verdict-contracts
-          node -e "const s=require('@bodanglin/verdict-contracts').contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
+          node --input-type=module -e "const s=(await import('@bodanglin/verdict-contracts')).contractSchemas; if(!('execution_envelope' in s)) throw new Error('execution_envelope schema missing from linked contracts package')"
       - name: TypeScript fixture expectations (jest, ESM)
         run: node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/contract-parity.test.ts
       - uses: actions/setup-python@v7
