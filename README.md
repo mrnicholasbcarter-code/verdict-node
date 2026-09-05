@@ -3,14 +3,17 @@
 [![npm](https://img.shields.io/npm/v/@bodanglin/verdict-node.svg)](https://www.npmjs.com/package/@bodanglin/verdict-node)
 [![TypeScript](https://img.shields.io/badge/typescript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/mrnicholasbcarter-code/verdict-node/actions/workflows/ci.yml/badge.svg)](https://github.com/mrnicholasbcarter-code/verdict-node/actions/workflows/ci.yml)
 
-> **OpenAI-compatible gateway adapter for Express and Next.js** — includes pre-forward execution-envelope validation.
+> **Safety-checking middleware for Express and Next.js apps that call an OpenAI-compatible API.** In short: **Verdict Core decides, verdict-node enforces at the HTTP edge** — this package does not make policy decisions itself, it checks each outgoing request against a decision made elsewhere before letting it through.
 
 ---
 
 ## What is @bodanglin/verdict-node?
 
-`@bodanglin/verdict-node` is the TypeScript gateway adapter for the **Verdict** ecosystem. Verdict Core owns policy and execution authorization; Node supplies transport middleware that can validate an `ExecutionEnvelope` before forwarding a request to an OpenAI-compatible upstream. The canonical cross-language envelope contract and Core issuance path are still being reconciled, so this alpha must not be represented as complete end-to-end policy enforcement. Node also retains local classification, discovery, ranking, and fallback behavior for compatibility routing; those heuristics are not Core authorization.
+`@bodanglin/verdict-node` is a TypeScript middleware library for Express and Next.js. In plain terms, it sits in front of your app's calls to an OpenAI-compatible API and checks each request before it goes out — it does not decide what is allowed; that is the job of **Verdict Core** (the Python control plane). This package's job is to enforce Core's decision at the HTTP edge: **core decides, node enforces**.
+
+The mechanism it enforces against is called an `ExecutionEnvelope` — plain-language: a signed record of what Core has authorized for a given request. By default, the standalone Express forwarder rejects a request outright ("fail-closed") if it arrives without a valid envelope or fails a policy check. The canonical cross-language contract for that envelope between Core (Python) and Node (TypeScript) is **still being reconciled**, so this alpha must not be represented as complete end-to-end policy enforcement yet. Node also retains its own local classification, discovery, ranking, and fallback behavior for compatibility routing; those heuristics are separate from, and not a substitute for, Core's authorization.
 
 **Works with any OpenAI-compatible client**: Claude Code, Codex, Cursor, Cline, Hermes, Agents SDK, raw HTTP.
 
@@ -223,15 +226,15 @@ verdict-node/
 
 ## Ecosystem
 
-| Package                                                           | Purpose                                |
-| ----------------------------------------------------------------- | -------------------------------------- |
-| [`verdict-core`](https://github.com/verdict/verdict-core)         | Python control plane                   |
-| `@bodanglin/verdict-node`                                         | Express/Next.js middleware (this repo) |
-| [`verdict-cockpit`](https://github.com/verdict/verdict-cockpit)   | Next.js dashboard                      |
-| [`verdict-risk`](https://github.com/verdict/verdict-risk)         | Risk engine                            |
-| [`verdict-edge`](https://github.com/verdict/verdict-edge)         | Edge mining framework                  |
-| [`verdict-backtest`](https://github.com/verdict/verdict-backtest) | Monte Carlo harness                    |
-| OmniRoute                                                         | 250+ providers, 90+ free tiers         |
+| Package                                                           | Purpose                                                                                                              |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [`verdict-core`](https://github.com/verdict/verdict-core)         | Python control plane                                                                                                 |
+| `@bodanglin/verdict-node`                                         | Express/Next.js middleware (this repo)                                                                               |
+| [`verdict-cockpit`](https://github.com/verdict/verdict-cockpit)   | Next.js dashboard                                                                                                    |
+| [`verdict-risk`](https://github.com/verdict/verdict-risk)         | Risk engine                                                                                                          |
+| [`verdict-edge`](https://github.com/verdict/verdict-edge)         | Edge mining framework                                                                                                |
+| [`verdict-backtest`](https://github.com/verdict/verdict-backtest) | Monte Carlo harness                                                                                                  |
+| OmniRoute                                                         | Per OmniRoute's own description: 250+ providers, 90+ free tiers (third-party claim, not verified by this repository) |
 
 ---
 
