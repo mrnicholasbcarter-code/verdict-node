@@ -3,7 +3,7 @@ import * as http from 'http';
 import * as https from 'https';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
 import { adaptRoutingDecision } from './adapters/contract-to-middleware.js';
-import { enforceExecutionEnvelope } from './middleware/forwarder.js';
+import { ExecutionEnvelopeError, enforceExecutionEnvelope } from './middleware/forwarder.js';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -328,7 +328,11 @@ export type OpenAIChatCompletionChunk = z.infer<typeof OpenAIChatCompletionChunk
 export interface ProxyRequestLike {
   body?: unknown;
   headers?: Record<string, string | string[] | undefined>;
-  llmRouter?: { decision?: Partial<MiddlewareRoutingDecision>; executionEnvelope?: unknown };
+  llmRouter?: {
+    decision?: Partial<MiddlewareRoutingDecision>;
+    executionEnvelope?: unknown;
+    expectedPolicyDigest?: string;
+  };
 }
 
 export interface ProxyResponseLike {
@@ -338,6 +342,7 @@ export interface ProxyResponseLike {
   write(chunk: Uint8Array | string): boolean;
   end(chunk?: Uint8Array | string): void;
   headersSent?: boolean;
+  statusCode?: number;
   flushHeaders?: () => void;
 }
 
@@ -808,9 +813,11 @@ export class LlmGateNode {
         } else {
           const adapted = adaptRoutingDecision(canonical);
           const envelope = (canonical as Record<string, unknown>).execution_envelope as unknown;
+          const digest = (canonical as Record<string, unknown>).policy_digest;
           req.llmRouter = {
             decision: { ...adapted, latencyMs: Date.now() - start },
             executionEnvelope: envelope,
+            expectedPolicyDigest: typeof digest === 'string' ? digest : undefined,
           };
           next();
           return true;
@@ -1004,8 +1011,10 @@ export class LlmGateNode {
           throw error;
         }
       });
-      if (!authorized) {
-        return; // Response already sent by middleware (e.g., 503)
+      const refusalAlreadyWritten =
+        res.headersSent === true || (typeof res.statusCode === 'number' && res.statusCode >= 400);
+      if (!authorized || refusalAlreadyWritten) {
+        return;
       }
       await proxy(req, res, (error: unknown) => {
         if (error) {
@@ -1033,20 +1042,34 @@ export class LlmGateNode {
         });
       }
 
-      // Enforce Core execution envelope before any upstream fetch.
-      // Only enforced when a Core decision (and thus envelope) is available.
-      // When requireCoreDecision=false (compatibility path), no envelope exists and enforcement is skipped.
       const envelope = req.llmRouter?.executionEnvelope;
-      if (envelope !== undefined) {
+      const expectedPolicyDigest = req.llmRouter?.expectedPolicyDigest;
+      const denyEnvelope = (err: unknown) => {
+        if (err instanceof ExecutionEnvelopeError) {
+          return res.status(403).json({ error: err.message, code: err.code });
+        }
+        if (err instanceof Error && 'code' in err) {
+          return res.status(403).json({ error: err.message, code: (err as { code: string }).code });
+        }
+        return res
+          .status(403)
+          .json({ error: 'Execution envelope validation failed', code: 'envelope_invalid' });
+      };
+
+      if (this.requireCoreDecision) {
+        try {
+          enforceExecutionEnvelope(envelope, parsedRequest.data, {
+            required: true,
+            expectedPolicyDigest,
+          });
+        } catch (err) {
+          return denyEnvelope(err);
+        }
+      } else if (envelope !== undefined) {
         try {
           enforceExecutionEnvelope(envelope, parsedRequest.data, { required: true });
         } catch (err) {
-          if (err instanceof Error && 'code' in err) {
-            return res.status(403).json({ error: err.message, code: (err as any).code });
-          }
-          return res
-            .status(403)
-            .json({ error: 'Execution envelope validation failed', code: 'envelope_invalid' });
+          return denyEnvelope(err);
         }
       }
 
@@ -1054,8 +1077,25 @@ export class LlmGateNode {
       const requestBody = parsedRequest.data;
       const isStream = requestBody.stream === true;
       let lastError = null;
+      let envelopeDenied = false;
 
       for (const candidateModel of ladder) {
+        if (this.requireCoreDecision) {
+          try {
+            enforceExecutionEnvelope(
+              envelope,
+              { ...requestBody, model: candidateModel },
+              {
+                required: true,
+                expectedPolicyDigest,
+              }
+            );
+          } catch (err) {
+            envelopeDenied = true;
+            lastError = err;
+            continue;
+          }
+        }
         const fetchStart = Date.now();
         try {
           const payload = { ...requestBody, model: candidateModel };
@@ -1096,6 +1136,9 @@ export class LlmGateNode {
         }
       }
 
+      if (envelopeDenied && lastError instanceof ExecutionEnvelopeError) {
+        return res.status(403).json({ error: lastError.message, code: lastError.code });
+      }
       res.status(502).json({
         error: 'All downstream dynamic routing targets failed/exhausted.',
         details: String(lastError),
