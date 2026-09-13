@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express, { Request, Response as ExpressResponse } from 'express';
 import request from 'supertest';
 import {
@@ -173,6 +176,7 @@ describe('LlmGateNode', () => {
     delete process.env.OMNIROUTE_API_BASE_URL;
     delete process.env.OMNIROUTE_API_KEY;
     delete process.env.OPENAI_API_KEY;
+    delete process.env.VERDICT_CORE_DECISION_ENDPOINT;
   });
 
   afterEach(() => {
@@ -208,6 +212,12 @@ describe('LlmGateNode', () => {
       json(payload: unknown) {
         jsonPayload = payload;
         return payload;
+      },
+      get statusCode() {
+        return statusCode ?? undefined;
+      },
+      get headersSent() {
+        return statusCode !== null || jsonPayload !== undefined || ended;
       },
       setHeader(name: string, value: string | string[]) {
         headers.set(name, value);
@@ -922,6 +932,220 @@ describe('LlmGateNode', () => {
       expect(recorder.jsonPayload).toEqual({ error: 'Routing decision unavailable or denied.' });
       // Verify NO upstream fetch to /chat/completions was made
       expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    const recordChatCompletions = () => {
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.endsWith('/chat/completions')) {
+          return new Response(JSON.stringify(validResponse), { status: 200 });
+        }
+        return new Response(JSON.stringify({ error: 'no decision' }), { status: 500 });
+      });
+      return fetchCalls;
+    };
+
+    const postHandler = async (
+      handler: ReturnType<typeof createNextApiHandler>,
+      extraHeaders: Record<string, string> = {}
+    ) => {
+      const recorder = createProxyResponseRecorder();
+      await handler(
+        {
+          method: 'POST',
+          body: validRequest,
+          headers: { accept: 'application/json', ...extraHeaders },
+        },
+        recorder.res
+      );
+      return recorder;
+    };
+
+    it('returns 503 and does NOT call upstream when Core decision times out', async () => {
+      const handler = createNextApiHandler({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+        decisionTimeoutMs: 5,
+      });
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        fetchCalls.push(String(_url));
+        return await new Promise((_, reject) => {
+          const signal = (init as RequestInit | undefined)?.signal;
+          if (signal) {
+            signal.addEventListener('abort', () => {
+              const err = new Error('The operation was aborted.');
+              err.name = 'TimeoutError';
+              reject(err);
+            });
+          }
+        });
+      });
+      const recorder = await postHandler(handler);
+      expect(recorder.statusCode).toBe(503);
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    it('returns 503 and does NOT call upstream when Core decision payload is invalid', async () => {
+      const handler = createNextApiHandler({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+      });
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        return new Response(JSON.stringify({ not: 'a-decision' }), { status: 200 });
+      });
+      const recorder = await postHandler(handler);
+      expect(recorder.statusCode).toBe(503);
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    it('returns 503 and does NOT call upstream when no decision endpoint is configured', async () => {
+      delete process.env.VERDICT_CORE_DECISION_ENDPOINT;
+      const handler = createNextApiHandler({ requireCoreDecision: true });
+      const fetchCalls = recordChatCompletions();
+      const recorder = await postHandler(handler);
+      expect(recorder.statusCode).toBe(503);
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    const allowDecision = (envelope: unknown, digest?: string) => ({
+      schema_version: '1',
+      selected_route: {
+        runtime_id: 'test/gpt-4o-mini',
+        model: 'gpt-4o-mini',
+        provider: 'test',
+        decision: 'allowed',
+        availability: 'available',
+        latency_ms: 1,
+      },
+      exclusions: [],
+      execution_envelope: envelope,
+      ...(digest ? { policy_digest: digest } : {}),
+    });
+
+    const testEnvelope = {
+      ...(JSON.parse(
+        fs.readFileSync(
+          path.join(path.dirname(fileURLToPath(import.meta.url)), '../test_fixtures/envelopes/valid_envelope.json'),
+          'utf-8'
+        )
+      ) as Record<string, unknown>),
+      execution_constraints: {
+        allowed_models: ['gpt-4o-mini'],
+        allowed_tools: ['lookup_weather'],
+        max_request_usd: 1.0,
+      },
+    };
+
+    it('does not forward on the default path without an envelope', async () => {
+      const handler = createNextApiHandler({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+        apiKey: 'secret-token',
+      });
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.includes('decision.test')) {
+          return new Response(JSON.stringify(allowDecision(undefined)), { status: 200 });
+        }
+        return new Response(JSON.stringify(validResponse), { status: 200 });
+      });
+      const recorder = await postHandler(handler);
+      expect(recorder.statusCode).toBe(403);
+      expect((recorder.jsonPayload as { code?: string }).code).toBe('envelope_missing');
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    it('does not forward a locally substituted ladder model outside the envelope', async () => {
+      const handler = createNextApiHandler({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+        apiKey: 'secret-token',
+      });
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.includes('decision.test')) {
+          return new Response(JSON.stringify(allowDecision(testEnvelope)), { status: 200 });
+        }
+        return new Response(JSON.stringify(validResponse), { status: 200 });
+      });
+      const node = new LlmGateNode({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+        apiKey: 'secret-token',
+      });
+      jest.spyOn(node as any, 'buildDynamicLadder').mockResolvedValue(['other-model']);
+      const recorder = createProxyResponseRecorder();
+      await node.nextApiHandler()(
+        { method: 'POST', body: validRequest, headers: { accept: 'application/json' } },
+        recorder.res
+      );
+      expect(recorder.statusCode).toBe(403);
+      expect((recorder.jsonPayload as { code?: string }).code).toBe('model_disallowed');
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    it('does not forward when envelope policy digest does not match independent evidence', async () => {
+      const handler = createNextApiHandler({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+        apiKey: 'secret-token',
+      });
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.includes('decision.test')) {
+          return new Response(
+            JSON.stringify(
+              allowDecision(
+                testEnvelope,
+                'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              )
+            ),
+            { status: 200 }
+          );
+        }
+        return new Response(JSON.stringify(validResponse), { status: 200 });
+      });
+      const recorder = await postHandler(handler);
+      expect(recorder.statusCode).toBe(403);
+      expect((recorder.jsonPayload as { code?: string }).code).toBe('envelope_tampered');
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(false);
+    });
+
+    it('forwards when policy allows and envelope matches (true allow path)', async () => {
+      const node = new LlmGateNode({
+        requireCoreDecision: true,
+        decisionEndpoint: 'http://decision.test/route',
+        apiKey: 'secret-token',
+      });
+      jest.spyOn(node as any, 'buildDynamicLadder').mockResolvedValue(['gpt-4o-mini']);
+      const fetchCalls: string[] = [];
+      jest.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+        const urlStr = String(url);
+        fetchCalls.push(urlStr);
+        if (urlStr.includes('decision.test')) {
+          return new Response(JSON.stringify(allowDecision(testEnvelope)), { status: 200 });
+        }
+        return new Response(JSON.stringify(validResponse), { status: 200 });
+      });
+      const recorder = createProxyResponseRecorder();
+      await node.nextApiHandler()(
+        { method: 'POST', body: validRequest, headers: { accept: 'application/json' } },
+        recorder.res
+      );
+      expect(recorder.statusCode).toBe(200);
+      expect(fetchCalls.some(c => c.endsWith('/chat/completions'))).toBe(true);
     });
   });
 
