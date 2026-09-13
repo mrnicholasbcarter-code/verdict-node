@@ -1031,7 +1031,10 @@ describe('LlmGateNode', () => {
     const testEnvelope = {
       ...(JSON.parse(
         fs.readFileSync(
-          path.join(path.dirname(fileURLToPath(import.meta.url)), '../test_fixtures/envelopes/valid_envelope.json'),
+          path.join(
+            path.dirname(fileURLToPath(import.meta.url)),
+            '../test_fixtures/envelopes/valid_envelope.json'
+          ),
           'utf-8'
         )
       ) as Record<string, unknown>),

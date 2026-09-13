@@ -3,10 +3,7 @@ import * as http from 'http';
 import * as https from 'https';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
 import { adaptRoutingDecision } from './adapters/contract-to-middleware.js';
-import {
-  ExecutionEnvelopeError,
-  enforceExecutionEnvelope,
-} from './middleware/forwarder.js';
+import { ExecutionEnvelopeError, enforceExecutionEnvelope } from './middleware/forwarder.js';
 
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -1015,8 +1012,7 @@ export class LlmGateNode {
         }
       });
       const refusalAlreadyWritten =
-        res.headersSent === true ||
-        (typeof res.statusCode === 'number' && res.statusCode >= 400);
+        res.headersSent === true || (typeof res.statusCode === 'number' && res.statusCode >= 400);
       if (!authorized || refusalAlreadyWritten) {
         return;
       }
@@ -1086,10 +1082,14 @@ export class LlmGateNode {
       for (const candidateModel of ladder) {
         if (this.requireCoreDecision) {
           try {
-            enforceExecutionEnvelope(envelope, { ...requestBody, model: candidateModel }, {
-              required: true,
-              expectedPolicyDigest,
-            });
+            enforceExecutionEnvelope(
+              envelope,
+              { ...requestBody, model: candidateModel },
+              {
+                required: true,
+                expectedPolicyDigest,
+              }
+            );
           } catch (err) {
             envelopeDenied = true;
             lastError = err;
