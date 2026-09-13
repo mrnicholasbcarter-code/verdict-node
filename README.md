@@ -109,7 +109,7 @@ export default createNextApiHandler({
 });
 ```
 
-**Critical limitation:** The current `createNextApiHandler` implementation does **not** stop after a Core-decision denial. When `middleware()` writes HTTP 503 (no decision available or denied), it returns without calling `next()`, but `nextApiHandler()` unconditionally invokes `proxy()` afterward. The proxy path skips envelope validation when no envelope is present and may fetch upstream. **Do not treat this handler as fail-closed.** A source-level fix with regression test is tracked in NOD-002.
+**Fail-closed handler:** `createNextApiHandler` returns after middleware writes HTTP 503 or another refusal (`headersSent` or `statusCode >= 400`) and does **not** call `proxy()`. Envelope validation, ladder-model recheck, and policy-digest integrity remain fail-closed. Compatibility opt-out (`requireCoreDecision: false`) is explicit only.
 
 ---
 
