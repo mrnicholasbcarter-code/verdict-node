@@ -58,7 +58,7 @@
     "zod"
   ],
   "dependencies": {
-    "@bodanglin/verdict-contracts": "^0.1.0",
+    "@bodanglin/verdict-contracts": "^0.2.0",
     "@types/express": "^5.0.6",
     "zod": "^3.25.76"
   },
@@ -67,7 +67,7 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.5.1",
     "@types/supertest": "^7.2.1",
     "config": "^5.0.0",
     "express": "^5.2.1",

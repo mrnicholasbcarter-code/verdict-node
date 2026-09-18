@@ -27,7 +27,7 @@ We establish the required edge-level `ExecutionEnvelope` validation rules for Ve
 
 - `src/middleware/forwarder.ts` implements fail-closed envelope validation by default before non-streaming JSON and streaming SSE forwarding. It checks the request model and does not substitute it.
 - `src/index.ts` validates an attached envelope in the higher-level gateway, but it currently skips enforcement when the envelope is absent, does not supply independent policy-digest evidence, and does not revalidate locally substituted ladder models.
-- **Critical defect:** `src/index.ts`'s `nextApiHandler()` unconditionally invokes `proxy()` after `middleware()` returns, even when `middleware()` wrote HTTP 503 without calling `next()`. The proxy path then skips envelope validation (no envelope attached) and may fetch upstream. This path is not fail-closed.
+- **Fail-closed handler:** `src/index.ts`'s `nextApiHandler()` returns after middleware writes HTTP 503 or another refusal (`headersSent` or `statusCode >= 400`) and does not call `proxy()`. Envelope validation, ladder-model recheck, and policy-digest integrity remain fail-closed. Compatibility opt-out (`requireCoreDecision: false`) is explicit only.
 - The published Core contract, Core issuance path, shared fixtures, and CI conformance coverage are not yet aligned.
 
 ## Consequences
