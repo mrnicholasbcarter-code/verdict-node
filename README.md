@@ -238,23 +238,23 @@ verdict-node/
 
 ## Ecosystem
 
-| Package                                                           | Purpose                                                                                                              |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| [`verdict-core`](https://github.com/verdict/verdict-core)         | Python control plane                                                                                                 |
-| `@bodanglin/verdict-node`                                         | Express/Next.js middleware (this repo)                                                                               |
-| [`verdict-cockpit`](https://github.com/verdict/verdict-cockpit)   | Next.js dashboard                                                                                                    |
-| [`verdict-risk`](https://github.com/verdict/verdict-risk)         | Risk engine                                                                                                          |
-| [`verdict-edge`](https://github.com/verdict/verdict-edge)         | Edge mining framework                                                                                                |
-| [`verdict-backtest`](https://github.com/verdict/verdict-backtest) | Monte Carlo harness                                                                                                  |
-| OmniRoute                                                         | Per OmniRoute's own description: 250+ providers, 90+ free tiers (third-party claim, not verified by this repository) |
+| Package                                                                          | Purpose                                                                                                              |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [`verdict-core`](https://github.com/mrnicholasbcarter-code/verdict-core)         | Python control plane                                                                                                 |
+| `@bodanglin/verdict-node`                                                        | Express/Next.js middleware (this repo)                                                                               |
+| [`verdict-cockpit`](https://github.com/mrnicholasbcarter-code/verdict-cockpit)   | Next.js dashboard                                                                                                    |
+| [`verdict-risk`](https://github.com/mrnicholasbcarter-code/verdict-risk)         | Risk engine                                                                                                          |
+| [`verdict-edge`](https://github.com/mrnicholasbcarter-code/verdict-strategy)     | Edge mining framework                                                                                                |
+| [`verdict-backtest`](https://github.com/mrnicholasbcarter-code/verdict-backtest) | Monte Carlo harness                                                                                                  |
+| OmniRoute                                                                        | Per OmniRoute's own description: 250+ providers, 90+ free tiers (third-party claim, not verified by this repository) |
 
 ---
 
 ## Links
 
-- **Verdict Core**: https://github.com/verdict/verdict-core
-- **Verdict Cockpit**: https://github.com/verdict/verdict-cockpit
-- **Issues**: https://github.com/verdict/verdict-node/issues
+- **Verdict Core**: https://github.com/mrnicholasbcarter-code/verdict-core
+- **Verdict Cockpit**: https://github.com/mrnicholasbcarter-code/verdict-cockpit
+- **Issues**: https://github.com/mrnicholasbcarter-code/verdict-node/issues
 - **Discord**: https://discord.gg/verdict
 
 ---
