@@ -42,6 +42,19 @@ const KNOWN_EXECUTION_ENVELOPE_FIELDS = new Set([
   'schema_version',
 ]);
 
+// Canonical execution_constraints keys (verdict-core PR #603 / 15d1f8f9)
+const KNOWN_CONSTRAINT_FIELDS = new Set([
+  'allowed_models',
+  'allowed_tools',
+  'allowed_agents',
+  'budget_usd',
+  'max_request_usd',
+  'max_latency_ms',
+  'risk_ceiling',
+  'required_verification',
+  'expires_at',
+]);
+
 /**
  * Verify an ExecutionEnvelope against Core's canonical rules.
  *
@@ -72,7 +85,7 @@ const KNOWN_EXECUTION_ENVELOPE_FIELDS = new Set([
  * @param options - Verification parameters (now and expectedPolicyDigest are REQUIRED)
  * @returns The verdict enum value
  *
- * @see https://github.com/mrnicholasbcarter-code/verdict-core/blob/80ebaf23278473bb48bde807c1c3867e980a6e14/docs/contracts/EXECUTION_ENVELOPE_V1.md
+ * @see https://github.com/mrnicholasbcarter-code/verdict-core/blob/15d1f8f9edcd37250655331a425a07d5767a98eb/docs/contracts/EXECUTION_ENVELOPE_V1.md
  */
 export function verifyExecutionEnvelope(
   envelope: unknown,
@@ -147,6 +160,14 @@ export function verifyExecutionEnvelope(
   }
 
   const cons = constraints as Record<string, unknown>;
+
+  // Step 4a: Check for unknown constraint keys (strict canonical key list)
+  for (const key of Object.keys(cons)) {
+    if (!KNOWN_CONSTRAINT_FIELDS.has(key)) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
   const expiresAt = cons.expires_at;
 
   // Missing expires_at → EXPIRED (fail closed: envelopes MUST have bounded lifetime)

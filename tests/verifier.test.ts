@@ -19,7 +19,7 @@ function loadFixture(name: string): unknown {
 }
 
 /**
- * Compute file SHA-256 (for manifest integrity check)
+ * Compute raw file SHA-256 (language-neutral)
  */
 function fileSha256(path: string): string {
   const content = readFileSync(path);
@@ -33,13 +33,24 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
       const manifestPath = join(fixturesDir, 'manifest.json');
       const actualSha = fileSha256(manifestPath);
       // This constant is recorded in contracts/fixtures/execution-envelope/v1/README.md
-      // and matches verdict-core SHA 80ebaf23278473bb48bde807c1c3867e980a6e14
-      const expectedSha = '73f1a9c28028887befb145c064c29ead9bbe6612353390ba7a57d9ed14c3ccd8';
+      // and matches verdict-core SHA 15d1f8f9edcd37250655331a425a07d5767a98eb
+      const expectedSha = '4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656';
       expect(actualSha).toBe(expectedSha);
     });
   });
 
-  // Test each canonical fixture against expected verdicts from the manifest
+  // Verify fixture files match their raw file SHA-256 hashes
+  describe('Fixture integrity', () => {
+    test('fixture files match their raw file SHA-256 hashes from manifest', () => {
+      for (const [filename, meta] of Object.entries(manifest.fixtures)) {
+        const fixturePath = join(fixturesDir, filename);
+        const actualSha = fileSha256(fixturePath);
+        expect(actualSha).toBe((meta as { sha256: string; expected_verdict: string }).sha256);
+      }
+    });
+  });
+
+  // Test each canonical fixture
   describe('Canonical fixtures', () => {
     const evaluationTime = manifest.evaluation_time;
     const expectedDigest = manifest.expected_policy_digest;

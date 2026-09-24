@@ -1,13 +1,13 @@
 # ExecutionEnvelope v1 Fixtures
 
-These canonical test fixtures are vendored from verdict-core at SHA `80ebaf23278473bb48bde807c1c3867e980a6e14`.
+These canonical test fixtures are vendored from verdict-core at SHA `15d1f8f9edcd37250655331a425a07d5767a98eb`.
 
 ## Source
 
 - **Repository**: https://github.com/mrnicholasbcarter-code/verdict-core
-- **Commit**: 80ebaf23278473bb48bde807c1c3867e980a6e14
+- **Commit**: 15d1f8f9edcd37250655331a425a07d5767a98eb
 - **Path**: `contracts/fixtures/execution-envelope/v1/`
-- **Manifest SHA-256**: `73f1a9c28028887befb145c064c29ead9bbe6612353390ba7a57d9ed14c3ccd8`
+- **Manifest SHA-256**: `4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656`
 
 ## Contract Documentation
 
@@ -18,7 +18,7 @@ The full ExecutionEnvelope v1 contract specification is maintained in verdict-co
 
 `manifest.json` is a **byte-identical copy** from verdict-core.
 
-The manifest file itself has SHA-256: `73f1a9c28028887befb145c064c29ead9bbe6612353390ba7a57d9ed14c3ccd8`
+The manifest file itself has SHA-256: `4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656`
 
 This constant is verified in `tests/verifier.test.ts` to ensure the vendored manifest stays pinned to Core.
 
@@ -45,13 +45,30 @@ Key rules:
 - Contradictory eligibility signals fail closed (DENY)
 - Timezone-naive or unparseable timestamps → EXPIRED
 
-## Canonical JSON Hashing
+## Canonical execution_constraints Keys
 
-Core's manifest records SHA-256 hashes of canonical JSON (Python's `json.dumps` with `sort_keys=True, separators=(",",":")`). These hashes pin the **semantic content** of fixtures, not their file representation.
+The Core contract now uses ONLY canonical keys in `execution_constraints`:
 
-**Note**: JavaScript's `JSON.stringify` cannot reproduce Python's canonical form byte-for-byte (e.g., Python preserves `1.0` for floats, JS converts to `1`). Therefore, Node consumers verify:
+- `allowed_models`
+- `allowed_tools`
+- `allowed_agents`
+- `budget_usd`
+- `max_request_usd`
+- `max_latency_ms`
+- `risk_ceiling`
+- `required_verification`
+- `expires_at`
 
-1. The vendored **manifest file** is byte-identical to Core's (SHA-256 = `73f1a9c28028887befb145c064c29ead9bbe6612353390ba7a57d9ed14c3ccd8`)
-2. Each fixture returns the **expected verdict** from the manifest
+Unknown constraint keys → `REJECT_UNKNOWN`.
 
-The fixture files themselves may drift until re-vendored; the manifest provides the stable contract.
+## Fixture SHA-256 Verification
+
+Core's manifest now records SHA-256 hashes of **raw file bytes** (language-neutral). Verify with any `sha256sum` tool or programmatically:
+
+```javascript
+import { createHash } from 'crypto';
+import { readFileSync } from 'fs';
+
+const hash = createHash('sha256').update(readFileSync('accepted.json')).digest('hex');
+// Should match manifest.fixtures['accepted.json'].sha256
+```
