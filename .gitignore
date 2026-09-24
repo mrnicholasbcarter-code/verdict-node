@@ -33,3 +33,7 @@ node_build.log
 .env.*.local
 
 CLAUDE.local.md
+
+# Generated test coverage and local agent vector stores
+coverage/
+*.db
