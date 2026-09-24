@@ -37,3 +37,6 @@ CLAUDE.local.md
 # Generated test coverage and local agent vector stores
 coverage/
 *.db
+
+# Package tarballs
+*.tgz

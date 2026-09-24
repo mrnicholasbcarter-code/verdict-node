@@ -2,7 +2,7 @@
 
 /**
  * Consumer smoke test for @bodanglin/verdict-node
- * 
+ *
  * Verifies:
  * 1. ESM import of root and ./middleware subpath
  * 2. TypeScript compilation against shipped .d.ts
@@ -34,7 +34,7 @@ try {
   const packOutput = execSync('npm pack --quiet', { cwd: projectRoot, encoding: 'utf-8' });
   const tarball = packOutput.trim().split('\n').pop();
   console.log(`   Created: ${tarball}`);
-  
+
   // Copy tarball to temp directory
   const tarballSrc = join(projectRoot, tarball);
   const tarballDest = join(tempDir, tarball);
@@ -56,10 +56,7 @@ try {
     },
   };
 
-  writeFileSync(
-    join(tempDir, 'package.json'),
-    JSON.stringify(consumerPkg, null, 2)
-  );
+  writeFileSync(join(tempDir, 'package.json'), JSON.stringify(consumerPkg, null, 2));
 
   // 3. Install the tarball
   console.log('\n3. Installing the package...');
@@ -117,7 +114,7 @@ const config: ForwarderConfig = {
 console.log('TypeScript compilation: OK');
 `;
   writeFileSync(join(tempDir, 'test-types.ts'), tsTest);
-  
+
   const tsConfig = {
     compilerOptions: {
       target: 'ES2022',
@@ -130,7 +127,7 @@ console.log('TypeScript compilation: OK');
     },
   };
   writeFileSync(join(tempDir, 'tsconfig.json'), JSON.stringify(tsConfig, null, 2));
-  
+
   execSync('npx tsc --noEmit', { cwd: tempDir, stdio: 'inherit' });
 
   // 7. Test CJS require() behavior
@@ -157,11 +154,11 @@ try {
   console.log('\n8. Verifying package file list...');
   const packDryRun = execSync('npm pack --dry-run --json', { cwd: projectRoot, encoding: 'utf-8' });
   const packInfo = JSON.parse(packDryRun)[0];
-  const files = packInfo.files.map((f) => f.path);
-  
+  const files = packInfo.files.map(f => f.path);
+
   console.log('   Files in package:');
-  files.forEach((f) => console.log(`     ${f}`));
-  
+  files.forEach(f => console.log(`     ${f}`));
+
   const allowedPatterns = [
     /^package\.json$/,
     /^README\.md$/,
@@ -170,17 +167,17 @@ try {
     /^dist\//,
     /^contracts\//,
   ];
-  
-  const disallowedFiles = files.filter((f) => {
-    return !allowedPatterns.some((pattern) => pattern.test(f));
+
+  const disallowedFiles = files.filter(f => {
+    return !allowedPatterns.some(pattern => pattern.test(f));
   });
-  
+
   if (disallowedFiles.length > 0) {
     console.error('\n   ERROR: Unexpected files in package:');
-    disallowedFiles.forEach((f) => console.error(`     ${f}`));
+    disallowedFiles.forEach(f => console.error(`     ${f}`));
     throw new Error('Package contains disallowed files');
   }
-  
+
   console.log('   File list: OK (only allowlisted files)');
 
   console.log('\n✅ All smoke tests passed!');

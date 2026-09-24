@@ -9,7 +9,6 @@
 
 ---
 
-
 ## ExecutionEnvelope Verification
 
 This package includes canonical ExecutionEnvelope v1 verification following the [verdict-core contract specification](https://github.com/mrnicholasbcarter-code/verdict-core/blob/80ebaf23278473bb48bde807c1c3867e980a6e14/docs/contracts/EXECUTION_ENVELOPE_V1.md).
@@ -51,7 +50,6 @@ if (verdict === EnvelopeVerdict.ACCEPT) {
 The package vendors canonical test fixtures from verdict-core at SHA `80ebaf23278473bb48bde807c1c3867e980a6e14`.
 
 See `contracts/fixtures/execution-envelope/v1/README.md` for details.
-
 
 ## What is @bodanglin/verdict-node?
 
@@ -312,11 +310,13 @@ MIT — see [LICENSE](LICENSE)
 This package supports both **ESM and CommonJS**.
 
 **ESM (recommended)**:
+
 ```javascript
 import { verifyExecutionEnvelope } from '@bodanglin/verdict-node';
 ```
 
 **CommonJS**:
+
 ```javascript
 const { verifyExecutionEnvelope } = require('@bodanglin/verdict-node');
 ```
