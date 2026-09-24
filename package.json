@@ -67,7 +67,7 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "@types/supertest": "^7.2.1",
     "config": "^5.0.1",
     "express": "^5.2.1",
