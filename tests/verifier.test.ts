@@ -13,6 +13,11 @@ const __dirname = dirname(__filename);
 const fixturesDir = join(__dirname, '../contracts/fixtures/execution-envelope/v1');
 const manifest = JSON.parse(readFileSync(join(fixturesDir, 'manifest.json'), 'utf-8'));
 
+// Load Core parity differential test cases
+const parityFixture = JSON.parse(
+  readFileSync(join(__dirname, 'fixtures/core-parity-cases.json'), 'utf-8')
+);
+
 function loadFixture(name: string): unknown {
   const content = readFileSync(join(fixturesDir, name), 'utf-8');
   return JSON.parse(content);
@@ -207,6 +212,24 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
       });
       expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
     });
+  });
+
+  // Differential test: Core-computed verdicts for 16 mutation cases
+  describe('Core parity differential: 16 mutation cases', () => {
+    const evaluationTime = parityFixture.evaluation_time;
+    const expectedDigest = parityFixture.expected_policy_digest;
+
+    for (const [caseName, caseData] of Object.entries(parityFixture.cases)) {
+      test(`${caseName}: ${(caseData as any).description} → ${(caseData as any).expected_verdict}`, () => {
+        const envelope = (caseData as any).envelope;
+        const expectedVerdict = (caseData as any).expected_verdict as string;
+        const verdict = verifyExecutionEnvelope(envelope, {
+          now: evaluationTime,
+          expectedPolicyDigest: expectedDigest,
+        });
+        expect(verdict).toBe(EnvelopeVerdict[expectedVerdict as keyof typeof EnvelopeVerdict]);
+      });
+    }
   });
 
   // Additional fail-closed validation

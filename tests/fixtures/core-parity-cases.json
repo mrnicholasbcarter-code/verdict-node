@@ -1,0 +1,863 @@
+{
+  "description": "Core parity differential test cases",
+  "base_fixture": "accepted.json",
+  "evaluation_time": "2024-01-15T12:00:00Z",
+  "expected_policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "cases": {
+    "cons_str": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "execution_constraints as string",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": "x",
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "cons_null": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "execution_constraints as null",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": null,
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "cons_list": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "execution_constraints as array",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": [],
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "noncanon": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "execution_constraints with non-canonical key (max_ms)",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0,
+          "max_ms": 1000
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "no_exp": {
+      "expected_verdict": "EXPIRED",
+      "description": "execution_constraints without expires_at",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "naive": {
+      "expected_verdict": "EXPIRED",
+      "description": "execution_constraints with timezone-naive expires_at",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "adm_denied": {
+      "expected_verdict": "DENY",
+      "description": "eligibility_decision with admitted=true, denied=true",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "denied": true
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "adm_dec_deny": {
+      "expected_verdict": "DENY",
+      "description": "eligibility_decision with admitted=true, decision=deny",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "deny"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "adm_dec_ACCEPT": {
+      "expected_verdict": "DENY",
+      "description": "eligibility_decision with decision=ACCEPT (uppercase, not 'accept')",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "ACCEPT"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "elig_null": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "eligibility_decision as null",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": null,
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "elig_admitted_1": {
+      "expected_verdict": "DENY",
+      "description": "eligibility_decision with admitted=1 (not true)",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": 1
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "dig_null": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "policy_digest as null",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": null,
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "dig_empty": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "policy_digest as empty string",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "dig_upper": {
+      "expected_verdict": "DIGEST_MISMATCH",
+      "description": "policy_digest in uppercase",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "task_spec_list": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "task_spec as array",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": [],
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        }
+      }
+    },
+    "extra_top": {
+      "expected_verdict": "REJECT_UNKNOWN",
+      "description": "unknown top-level field",
+      "envelope": {
+        "allowed_capabilities": ["read", "write"],
+        "created_at": "2024-01-15T12:00:00Z",
+        "eligibility_decision": {
+          "admitted": true,
+          "decision": "accept"
+        },
+        "evidence_ids": ["evidence-001"],
+        "execution_constraints": {
+          "expires_at": "2024-01-15T13:00:00Z",
+          "max_latency_ms": 5000,
+          "max_request_usd": 1.0
+        },
+        "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routing_decision": {
+          "decision": "accept",
+          "routed_to": "node-1"
+        },
+        "schema_version": "1",
+        "task_spec": {
+          "approvals": [],
+          "budget": {},
+          "capabilities": [],
+          "context": null,
+          "context_requirements": {},
+          "criticality": "unknown",
+          "degraded_mode_policy": "deny",
+          "destructive_operation": false,
+          "effort": "unknown",
+          "latency": null,
+          "latency_limit_ms": null,
+          "metadata": {},
+          "objective": "test execution",
+          "parallelism": "serial",
+          "privacy": "unknown",
+          "production_impact": false,
+          "reasoning": "unknown",
+          "required_capabilities": [],
+          "risk": "unknown",
+          "schema_version": "1",
+          "task_type": "test",
+          "tool_requirements": {},
+          "tools": [],
+          "verification": null,
+          "workflow": null
+        },
+        "verification_requirements": {
+          "checks": [],
+          "on_failure": "deny",
+          "schema_version": "1"
+        },
+        "zzz": "unknown_field"
+      }
+    }
+  }
+}

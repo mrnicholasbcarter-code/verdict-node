@@ -1,3 +1,5 @@
+import { contractSchemas } from '@bodanglin/verdict-contracts';
+
 /**
  * Envelope verification verdicts
  *
@@ -64,6 +66,7 @@ const KNOWN_CONSTRAINT_FIELDS = new Set([
  * 1. Schema Validation (FIRST): Check structure and reject unknown fields
  *    - Unknown fields, wrong types, structural errors → REJECT_UNKNOWN
  *    - Required fields must be present with correct JSON types
+ *    - Nested objects (task_spec, verification_requirements) validated against Zod schemas
  *    - execution_constraints must be a plain object with only canonical keys
  *    - policy_digest must be a non-empty string
  *
@@ -157,6 +160,28 @@ export function verifyExecutionEnvelope(
   }
 
   const elig = eligibility as Record<string, unknown>;
+
+  // Step 1h: Validate nested task_spec against canonical Zod schema
+  const taskSpec = env.task_spec;
+  try {
+    const parsed = contractSchemas.task_spec.safeParse(taskSpec);
+    if (!parsed.success) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  } catch {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1i: Validate nested verification_requirements against canonical Zod schema
+  const verificationReqs = env.verification_requirements;
+  try {
+    const parsed = contractSchemas.verification_plan.safeParse(verificationReqs);
+    if (!parsed.success) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  } catch {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
 
   // =========================================================================
   // Step 2: Eligibility check (after structure is validated)

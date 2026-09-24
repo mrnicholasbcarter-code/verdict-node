@@ -1,0 +1,65 @@
+fix: validate nested objects to close fail-open (Core parity)
+
+Fixed fail-open: task_spec=[] now returns REJECT_UNKNOWN (was ACCEPT).
+
+Added nested object validation using canonical Zod schemas from
+@bodanglin/verdict-contracts to match Core's behavior.
+
+## Changes
+
+### Verifier (src/verifier.ts)
+- Import contractSchemas from @bodanglin/verdict-contracts
+- Step 1h: Validate task_spec against contractSchemas.task_spec
+- Step 1i: Validate verification_requirements against contractSchemas.verification_plan
+- Both use safeParse with try/catch → REJECT_UNKNOWN on failure
+
+### Tests
+- Added tests/fixtures/core-parity-cases.json: 16 differential test cases
+  with Core-computed verdicts (against verdict-core 15d1f8f9)
+- Added differential test suite in tests/verifier.test.ts
+- All 16 cases pass with exact Core verdicts
+
+### Differential Test Results (27 total inputs, 27/27 agree with Core)
+
+Canonical fixtures (6):
+- accepted.json            → ACCEPT
+- denied.json              → DENY
+- expired.json             → EXPIRED
+- wrong-digest.json        → DIGEST_MISMATCH
+- unknown-field.json       → REJECT_UNKNOWN
+- null-defaults.json       → ACCEPT
+
+Differential mutations (16):
+- cons_str                 → REJECT_UNKNOWN
+- cons_null                → REJECT_UNKNOWN
+- cons_list                → REJECT_UNKNOWN
+- noncanon (max_ms)        → REJECT_UNKNOWN
+- no_exp                   → EXPIRED
+- naive                    → EXPIRED
+- adm_denied               → DENY
+- adm_dec_deny             → DENY
+- adm_dec_ACCEPT           → DENY
+- elig_null                → REJECT_UNKNOWN
+- elig_admitted_1          → DENY
+- dig_null                 → REJECT_UNKNOWN
+- dig_empty                → REJECT_UNKNOWN
+- dig_upper                → DIGEST_MISMATCH
+- task_spec_list           → REJECT_UNKNOWN ✓ (was ACCEPT, FAIL-OPEN fixed)
+- extra_top                → REJECT_UNKNOWN
+
+Garbage table (5):
+- 1, null, "x", [], {}     → all REJECT_UNKNOWN, 0 throws
+
+## Verification
+
+All checks passed:
+- ✅ npm run build
+- ✅ npm run lint
+- ✅ npm run format:check
+- ✅ npm run typecheck
+- ✅ npm test (258 tests total, 34 verifier tests)
+- ✅ npm run verify:package
+- ✅ npm run consumer:smoke
+
+**27/27 inputs agree with Core Python verify_execution_envelope**
+**0 ACCEPT from garbage/adversarial inputs, 0 throws**
