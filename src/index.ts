@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import * as http from 'http';
 import * as https from 'https';
+import { createRequire } from 'module';
 import type { RoutingDecision as CanonicalRoutingDecision } from '@bodanglin/verdict-contracts';
 import { adaptRoutingDecision } from './adapters/contract-to-middleware.js';
 import { ExecutionEnvelopeError, enforceExecutionEnvelope } from './middleware/forwarder.js';
@@ -520,9 +521,12 @@ export class LlmGateNode {
     this.autoDetectorRan = true;
     const required = ['express', 'zod'];
     const missing: string[] = [];
+    // This package is ESM ("type": "module"), so the CommonJS `require` global does not
+    // exist here. Resolve from this module's location instead.
+    const resolveFromHere = createRequire(import.meta.url);
     for (const pkg of required) {
       try {
-        require.resolve(pkg);
+        resolveFromHere.resolve(pkg);
       } catch (e) {
         missing.push(pkg);
       }
