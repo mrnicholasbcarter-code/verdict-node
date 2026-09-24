@@ -54,6 +54,18 @@ behind an install fallback.
 
 ## Install
 
+> **Registry version lags this branch.** The only published release, `0.1.0`
+> (npm, 2026-07-26), predates execution-envelope enforcement, the
+> `createNextApiHandler` export, and the fail-closed handler fix. The behavior
+> in this README requires a build from source until a new version is
+> released:
+>
+> ```bash
+> git clone https://github.com/mrnicholasbcarter-code/verdict-node.git
+> cd verdict-node && npm ci && npm run build
+> npm install /path/to/verdict-node   # from your application
+> ```
+
 ```bash
 npm install @bodanglin/verdict-node
 # or
