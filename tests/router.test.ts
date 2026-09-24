@@ -1391,3 +1391,18 @@ describe('LlmGateNode', () => {
     });
   });
 });
+
+describe('peer dependency detection', () => {
+  it('does not report installed peers as missing under ESM', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      new LlmGateNode({ requireCoreDecision: false });
+      const peerWarnings = warn.mock.calls.filter(call =>
+        String(call[0]).includes('Missing recommended peer libraries')
+      );
+      expect(peerWarnings).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
