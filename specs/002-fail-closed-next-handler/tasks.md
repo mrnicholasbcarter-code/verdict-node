@@ -4,13 +4,21 @@ description: "Task list for 002-fail-closed-next-handler"
 
 # Tasks: Fail-closed after policy refusal
 
+> **Status (reconciled 2026-09-24):** Delivered.
+> - Handler fix and regression tests: PR #67 (merged 2026-09-13), `src/index.ts` `nextApiHandler()`.
+> - README/ADR-001 reconciliation: PR #68 (2026-09-13) and PR #78 (2026-09-24).
+> - Evidence on `master`: the 12 fail-closed tests in `tests/router.test.ts` pass (503 for unavailable, denied, timeout, invalid payload and missing endpoint; no forwarding without an envelope; ladder-model recheck; policy-digest mismatch).
+> - Still open, not in this spec: end-to-end parity with a published Core `ExecutionEnvelope` (NOD-002 / ADR-001).
+>
+> Checkboxes below are the original plan and were not ticked during delivery. Use the evidence above as the record.
+
 **Input**: Design documents from `/specs/002-fail-closed-next-handler/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
 **Tests**: Spec FR-003/FR-006 require regression tests. Write them first and confirm they fail where the bypass still exists.
 
-**Organization**: One writer in this worktree. Do not edit `/home/nick/dev/verdict-node` dirty `feat/nod002-parity-gate`. Do not rewrite README until US1+US3 tests are green.
+**Organization**: One writer in this worktree. Do not edit the main checkout's dirty `feat/nod002-parity-gate` branch. Do not rewrite README until US1+US3 tests are green.
 
 ## Format: `[ID] [P?] [Story] Description`
 

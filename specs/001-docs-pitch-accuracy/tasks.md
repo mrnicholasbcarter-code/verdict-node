@@ -1,5 +1,11 @@
 # Tasks: Documentation & Pitch Accuracy
 
+> **Status (reconciled 2026-09-24):** Delivered in PR #63 (merged 2026-09-05).
+> - README pitch rewrite, OmniRoute attribution hedge and CI badge are on `master`.
+> - The out-of-scope code defect tracked here (Next.js handler continuing after 503) was fixed separately in #67 (see `specs/002-fail-closed-next-handler/`).
+>
+> Checkboxes below are the original plan and were not ticked during delivery. Use the evidence above as the record.
+
 **Input**: Design documents from `/specs/001-docs-pitch-accuracy/`
 
 **Prerequisites**: plan.md, spec.md, research.md, quickstart.md
@@ -17,7 +23,7 @@ non-implementable tracked task for the out-of-scope code defect.
 
 ## Phase 1: Setup
 
-- [ ] T001 Capture baseline snapshot of `/home/nick/dev/verdict-node/README.md` for before/after comparison (`git show HEAD:README.md > /tmp/readme-before.md`), per quickstart.md Step 1.
+- [ ] T001 Capture baseline snapshot of `README.md` for before/after comparison (`git show HEAD:README.md > /tmp/readme-before.md`), per quickstart.md Step 1.
   **Acceptance Criteria**:
   - `/tmp/readme-before.md` exists and is byte-identical to the current committed `README.md`.
   - The snapshot is taken before any edit in this feature begins.
@@ -47,7 +53,7 @@ non-implementable tracked task for the out-of-scope code defect.
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Rewrite the title/tagline/opening paragraph(s) of `/home/nick/dev/verdict-node/README.md` using the drafted plain-language pitch as the basis, lightly copy-edited for flow.
+- [ ] T003 [US1] Rewrite the title/tagline/opening paragraph(s) of `README.md` using the drafted plain-language pitch as the basis, lightly copy-edited for flow.
   **Acceptance Criteria**:
   - The rewritten text explains, before or alongside any jargon term, that verdict-node is an Express/Next.js middleware library that checks requests against a safety envelope before forwarding them.
   - The rewritten text explicitly states the "core decides, node enforces at the HTTP edge" relationship to verdict-core (FR-002), using materially equivalent plain language if not verbatim.
