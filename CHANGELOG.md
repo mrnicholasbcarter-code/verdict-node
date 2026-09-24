@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Declared Express as the middleware peer boundary and shipped its public TypeScript declarations as a runtime type dependency.
 - Replaced long-lived npm publication credentials with a release-note-gated OIDC trusted-publishing workflow and a mandatory dry run.
 
-## [0.1.0] - 2024-01-15
+## [0.1.0] - 2026-07-26
 
 ### Added
 
