@@ -1,0 +1,44 @@
+fix: structural validation before specific checks (Core parity)
+
+Aligned verifier with Core's verification order: schema/structural validation
+happens FIRST, before specific checks (eligibility, digest, expiry).
+
+## Changes
+
+### Verifier (src/verifier.ts)
+Reordered validation steps to match Core:
+1. Schema validation FIRST (structural checks):
+   - Required fields present with correct JSON types
+   - execution_constraints must be a plain object with only canonical keys
+   - policy_digest must be a non-empty string
+   - Unknown fields → REJECT_UNKNOWN
+   - Wrong types → REJECT_UNKNOWN
+2. Eligibility check (after structure validated)
+3. Digest check (after structure validated)
+4. Expiry check (after structure validated)
+
+### Tests (tests/verifier.test.ts)
+Added 3 Core parity cases:
+- execution_constraints = "x"   → REJECT_UNKNOWN (was EXPIRED)
+- execution_constraints = null  → REJECT_UNKNOWN (was EXPIRED)
+- policy_digest = null          → REJECT_UNKNOWN (was DIGEST_MISMATCH)
+
+Now 18 verifier tests (was 15), all passing.
+
+## Verification
+
+All checks passed:
+- ✅ npm run build
+- ✅ npm run lint
+- ✅ npm run format:check
+- ✅ npm run typecheck
+- ✅ npm test (241 tests total, 18 verifier tests)
+- ✅ npm run verify:package
+- ✅ npm run consumer:smoke
+
+All 6 canonical fixtures return manifest verdicts.
+Garbage table: 0 ACCEPT, 0 throws across all adversarial cases.
+
+## References
+
+Follows verdict-core EXECUTION_ENVELOPE_V1.md: "Schema validation happens first"

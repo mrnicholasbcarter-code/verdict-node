@@ -61,15 +61,18 @@ const KNOWN_CONSTRAINT_FIELDS = new Set([
  * This implements the same verification logic as verdict-core's
  * `verify_execution_envelope()`, following the fail-closed contract:
  *
- * 1. Schema Validation: Check structure and reject unknown fields
+ * 1. Schema Validation (FIRST): Check structure and reject unknown fields
  *    - Unknown fields, wrong types, structural errors → REJECT_UNKNOWN
+ *    - Required fields must be present with correct JSON types
+ *    - execution_constraints must be a plain object with only canonical keys
+ *    - policy_digest must be a non-empty string
  *
  * 2. Eligibility: eligibility_decision.admitted must be true AND no contradictory signals
  *    - admitted is not true → DENY
  *    - denied is truthy → DENY (even if admitted=true)
  *    - decision present and not "accept" → DENY (even if admitted=true)
  *
- * 3. Digest Mismatch: Missing, empty, or wrong policy_digest → DIGEST_MISMATCH
+ * 3. Digest Mismatch: Wrong policy_digest → DIGEST_MISMATCH
  *
  * 4. Expiry (bounded lifetime REQUIRED):
  *    - Missing execution_constraints.expires_at → EXPIRED
@@ -91,21 +94,25 @@ export function verifyExecutionEnvelope(
   envelope: unknown,
   options: VerifyExecutionEnvelopeOptions
 ): EnvelopeVerdict {
-  // Step 1: Basic type check
+  // =========================================================================
+  // Step 1: Schema Validation (structural checks FIRST, before specific checks)
+  // =========================================================================
+
+  // Step 1a: Basic type check
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
   const env = envelope as Record<string, unknown>;
 
-  // Step 1a: Check for unknown fields (strict v1 contract)
+  // Step 1b: Check for unknown top-level fields (strict v1 contract)
   for (const key of Object.keys(env)) {
     if (!KNOWN_EXECUTION_ENVELOPE_FIELDS.has(key)) {
       return EnvelopeVerdict.REJECT_UNKNOWN;
     }
   }
 
-  // Step 1b: Validate required fields are present
+  // Step 1c: Validate required fields are present
   const required = [
     'task_spec',
     'eligibility_decision',
@@ -122,13 +129,38 @@ export function verifyExecutionEnvelope(
     }
   }
 
-  // Step 2: Eligibility check
+  // Step 1d: Validate policy_digest is a non-empty string (structural check)
+  const digest = env.policy_digest;
+  if (typeof digest !== 'string' || digest === '') {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1e: Validate execution_constraints is a plain object (structural check)
+  const constraints = env.execution_constraints;
+  if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  const cons = constraints as Record<string, unknown>;
+
+  // Step 1f: Check for unknown constraint keys (strict canonical key list)
+  for (const key of Object.keys(cons)) {
+    if (!KNOWN_CONSTRAINT_FIELDS.has(key)) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // Step 1g: Validate eligibility_decision is a plain object (structural check)
   const eligibility = env.eligibility_decision;
   if (!eligibility || typeof eligibility !== 'object' || Array.isArray(eligibility)) {
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
   const elig = eligibility as Record<string, unknown>;
+
+  // =========================================================================
+  // Step 2: Eligibility check (after structure is validated)
+  // =========================================================================
 
   // Check admitted field
   if (elig.admitted !== true) {
@@ -145,28 +177,17 @@ export function verifyExecutionEnvelope(
     return EnvelopeVerdict.DENY;
   }
 
-  // Step 3: Digest check
-  const digest = env.policy_digest;
-  if (typeof digest !== 'string' || !digest || digest !== options.expectedPolicyDigest) {
+  // =========================================================================
+  // Step 3: Digest check (after structure is validated)
+  // =========================================================================
+
+  if (digest !== options.expectedPolicyDigest) {
     return EnvelopeVerdict.DIGEST_MISMATCH;
   }
 
-  // Step 4: Expiry check (bounded lifetime REQUIRED)
-  const constraints = env.execution_constraints;
-
-  // Missing or null execution_constraints → EXPIRED
-  if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) {
-    return EnvelopeVerdict.EXPIRED;
-  }
-
-  const cons = constraints as Record<string, unknown>;
-
-  // Step 4a: Check for unknown constraint keys (strict canonical key list)
-  for (const key of Object.keys(cons)) {
-    if (!KNOWN_CONSTRAINT_FIELDS.has(key)) {
-      return EnvelopeVerdict.REJECT_UNKNOWN;
-    }
-  }
+  // =========================================================================
+  // Step 4: Expiry check (after structure is validated)
+  // =========================================================================
 
   const expiresAt = cons.expires_at;
 
@@ -199,6 +220,9 @@ export function verifyExecutionEnvelope(
     return EnvelopeVerdict.EXPIRED;
   }
 
+  // =========================================================================
   // All checks passed
+  // =========================================================================
+
   return EnvelopeVerdict.ACCEPT;
 }

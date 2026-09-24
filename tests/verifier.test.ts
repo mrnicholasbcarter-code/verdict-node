@@ -164,6 +164,51 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
     });
   });
 
+  // Core parity: structural validation happens FIRST
+  describe('Core parity: structural checks before specific checks', () => {
+    const evaluationTime = manifest.evaluation_time;
+    const expectedDigest = manifest.expected_policy_digest;
+
+    test('execution_constraints = "x" → REJECT_UNKNOWN (not EXPIRED)', () => {
+      const base = loadFixture('accepted.json') as Record<string, unknown>;
+      const envelope = {
+        ...base,
+        execution_constraints: 'x',
+      };
+      const verdict = verifyExecutionEnvelope(envelope, {
+        now: evaluationTime,
+        expectedPolicyDigest: expectedDigest,
+      });
+      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
+    });
+
+    test('execution_constraints = null → REJECT_UNKNOWN (not EXPIRED)', () => {
+      const base = loadFixture('accepted.json') as Record<string, unknown>;
+      const envelope = {
+        ...base,
+        execution_constraints: null,
+      };
+      const verdict = verifyExecutionEnvelope(envelope, {
+        now: evaluationTime,
+        expectedPolicyDigest: expectedDigest,
+      });
+      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
+    });
+
+    test('policy_digest = null → REJECT_UNKNOWN (not DIGEST_MISMATCH)', () => {
+      const base = loadFixture('accepted.json') as Record<string, unknown>;
+      const envelope = {
+        ...base,
+        policy_digest: null,
+      };
+      const verdict = verifyExecutionEnvelope(envelope, {
+        now: evaluationTime,
+        expectedPolicyDigest: expectedDigest,
+      });
+      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
+    });
+  });
+
   // Additional fail-closed validation
   describe('Additional validation rules', () => {
     const evaluationTime = manifest.evaluation_time;
