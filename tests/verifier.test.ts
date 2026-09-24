@@ -18,23 +18,28 @@ function loadFixture(name: string): unknown {
   return JSON.parse(content);
 }
 
-function sha256(content: string): string {
+/**
+ * Compute file SHA-256 (for manifest integrity check)
+ */
+function fileSha256(path: string): string {
+  const content = readFileSync(path);
   return createHash('sha256').update(content).digest('hex');
 }
 
 describe('ExecutionEnvelope v1 Fixtures', () => {
-  // First, verify all fixtures match their manifest checksums
-  describe('Fixture integrity', () => {
-    test('manifest fixtures match their SHA-256 checksums', () => {
-      for (const [filename, meta] of Object.entries(manifest.fixtures)) {
-        const content = readFileSync(join(fixturesDir, filename), 'utf-8');
-        const actualSha = sha256(content);
-        expect(actualSha).toBe((meta as { sha256: string; expected_verdict: string }).sha256);
-      }
+  // Verify the vendored manifest is byte-identical to Core
+  describe('Manifest integrity', () => {
+    test('vendored manifest.json file SHA-256 matches Core', () => {
+      const manifestPath = join(fixturesDir, 'manifest.json');
+      const actualSha = fileSha256(manifestPath);
+      // This constant is recorded in contracts/fixtures/execution-envelope/v1/README.md
+      // and matches verdict-core SHA 80ebaf23278473bb48bde807c1c3867e980a6e14
+      const expectedSha = '73f1a9c28028887befb145c064c29ead9bbe6612353390ba7a57d9ed14c3ccd8';
+      expect(actualSha).toBe(expectedSha);
     });
   });
 
-  // Test each canonical fixture
+  // Test each canonical fixture against expected verdicts from the manifest
   describe('Canonical fixtures', () => {
     const evaluationTime = manifest.evaluation_time;
     const expectedDigest = manifest.expected_policy_digest;
