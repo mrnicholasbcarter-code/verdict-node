@@ -66,9 +66,10 @@ const KNOWN_CONSTRAINT_FIELDS = new Set([
  * 1. Schema Validation (FIRST): Check structure and reject unknown fields
  *    - Unknown fields, wrong types, structural errors → REJECT_UNKNOWN
  *    - Required fields must be present with correct JSON types
+ *    - Top-level fields validated against Core schema types
  *    - Nested objects (task_spec, verification_requirements) validated against Zod schemas
  *    - execution_constraints must be a plain object with only canonical keys
- *    - policy_digest must be a non-empty string
+ *    - policy_digest must be a 64-char hex string
  *
  * 2. Eligibility: eligibility_decision.admitted must be true AND no contradictory signals
  *    - admitted is not true → DENY
@@ -132,13 +133,50 @@ export function verifyExecutionEnvelope(
     }
   }
 
-  // Step 1d: Validate policy_digest is a non-empty string (structural check)
-  const digest = env.policy_digest;
-  if (typeof digest !== 'string' || digest === '') {
+  // Step 1d: Validate schema_version is exactly "1"
+  const schemaVersion = env.schema_version;
+  if (schemaVersion !== '1') {
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
-  // Step 1e: Validate execution_constraints is a plain object (structural check)
+  // Step 1e: Validate policy_digest is a 64-char hex string
+  const digest = env.policy_digest;
+  if (typeof digest !== 'string' || !/^[a-fA-F0-9]{64}$/.test(digest)) {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1f: Validate allowed_capabilities is array of strings
+  const allowedCapabilities = env.allowed_capabilities;
+  if (
+    !Array.isArray(allowedCapabilities) ||
+    !allowedCapabilities.every(item => typeof item === 'string')
+  ) {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1g: Validate evidence_ids is array of strings
+  const evidenceIds = env.evidence_ids;
+  if (!Array.isArray(evidenceIds) || !evidenceIds.every(item => typeof item === 'string')) {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1h: Validate routing_decision is null or plain object
+  const routingDecision = env.routing_decision;
+  if (
+    routingDecision !== undefined &&
+    routingDecision !== null &&
+    (typeof routingDecision !== 'object' || Array.isArray(routingDecision))
+  ) {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1i: Validate created_at is null or string (if present)
+  const createdAt = env.created_at;
+  if (createdAt !== undefined && createdAt !== null && typeof createdAt !== 'string') {
+    return EnvelopeVerdict.REJECT_UNKNOWN;
+  }
+
+  // Step 1j: Validate execution_constraints is a plain object (structural check)
   const constraints = env.execution_constraints;
   if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) {
     return EnvelopeVerdict.REJECT_UNKNOWN;
@@ -146,14 +184,14 @@ export function verifyExecutionEnvelope(
 
   const cons = constraints as Record<string, unknown>;
 
-  // Step 1f: Check for unknown constraint keys (strict canonical key list)
+  // Step 1k: Check for unknown constraint keys (strict canonical key list)
   for (const key of Object.keys(cons)) {
     if (!KNOWN_CONSTRAINT_FIELDS.has(key)) {
       return EnvelopeVerdict.REJECT_UNKNOWN;
     }
   }
 
-  // Step 1g: Validate eligibility_decision is a plain object (structural check)
+  // Step 1l: Validate eligibility_decision is a plain object (structural check)
   const eligibility = env.eligibility_decision;
   if (!eligibility || typeof eligibility !== 'object' || Array.isArray(eligibility)) {
     return EnvelopeVerdict.REJECT_UNKNOWN;
@@ -161,7 +199,7 @@ export function verifyExecutionEnvelope(
 
   const elig = eligibility as Record<string, unknown>;
 
-  // Step 1h: Validate nested task_spec against canonical Zod schema
+  // Step 1m: Validate nested task_spec against canonical Zod schema
   const taskSpec = env.task_spec;
   try {
     const parsed = contractSchemas.task_spec.safeParse(taskSpec);
@@ -172,7 +210,7 @@ export function verifyExecutionEnvelope(
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
-  // Step 1i: Validate nested verification_requirements against canonical Zod schema
+  // Step 1n: Validate nested verification_requirements against canonical Zod schema
   const verificationReqs = env.verification_requirements;
   try {
     const parsed = contractSchemas.verification_plan.safeParse(verificationReqs);
