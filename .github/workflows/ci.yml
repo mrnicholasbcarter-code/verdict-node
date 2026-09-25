@@ -40,6 +40,8 @@ jobs:
         run: npm test
       - name: Verify shipped package in a clean consumer
         run: npm run verify:package
+      - name: Run consumer smoke test (version-specific require validation)
+        run: npm run consumer:smoke
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
