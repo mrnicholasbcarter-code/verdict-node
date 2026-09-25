@@ -19,13 +19,19 @@
     "metadata": {}
   },
   "eligibility_decision": {
-    "admitted": ["gpt-4"],
+    "admitted": [
+      "gpt-4"
+    ],
     "reason": "test"
   },
   "policy_digest": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "allowed_capabilities": ["chat"],
+  "allowed_capabilities": [
+    "chat"
+  ],
   "execution_constraints": {
-    "allowed_models": ["gpt-4"]
+    "allowed_models": [
+      "gpt-4"
+    ]
   },
   "verification_requirements": {
     "checks": []
