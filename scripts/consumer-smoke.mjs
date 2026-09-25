@@ -11,6 +11,7 @@
  */
 
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
 import { mkdtempSync, writeFileSync, rmSync, copyFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve, dirname } from 'path';
@@ -20,6 +21,56 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
 
 const NODE_VERSION = process.version;
+
+// Validate that package.json engines.node matches our require(esm) detection
+const pkgJson = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8'));
+const enginesNode = pkgJson.engines?.node;
+
+// Test cases: versions that should be rejected vs accepted by engines.node
+const shouldReject = ['20.18.0', '20.18.99', '22.11.0', '22.11.99', '21.0.0', '21.7.3'];
+const shouldAccept = ['20.19.0', '20.19.1', '22.12.0', '22.12.1', '24.0.0', '23.0.0'];
+
+// Simple semver range matcher for our specific pattern: "^20.19.0 || >=22.12.0"
+function matchesEnginesNode(version, range) {
+  const [major, minor, patch] = version.split('.').map(Number);
+
+  // Expected range: "^20.19.0 || >=22.12.0"
+  // ^20.19.0 means >=20.19.0 <21.0.0
+  // >=22.12.0 means >=22.12.0
+
+  if (major === 20) {
+    return minor >= 19;
+  }
+  if (major === 21) {
+    return false; // 21.x is not in the range
+  }
+  if (major === 22) {
+    return minor >= 12;
+  }
+  if (major >= 23) {
+    return true;
+  }
+  return false;
+}
+
+console.log(`Validating engines.node: "${enginesNode}"`);
+
+for (const version of shouldReject) {
+  if (matchesEnginesNode(version, enginesNode)) {
+    console.error(`ERROR: engines.node should reject ${version} (no require(esm))`);
+    process.exit(1);
+  }
+}
+
+for (const version of shouldAccept) {
+  if (!matchesEnginesNode(version, enginesNode)) {
+    console.error(`ERROR: engines.node should accept ${version} (has require(esm))`);
+    process.exit(1);
+  }
+}
+
+console.log('  engines.node range validation: OK\n');
+
 const [major, minor] = NODE_VERSION.slice(1).split('.').map(Number);
 
 // Parse Node version to determine require(esm) support
