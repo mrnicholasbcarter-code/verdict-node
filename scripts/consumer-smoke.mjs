@@ -23,10 +23,8 @@ const NODE_VERSION = process.version;
 const [major, minor] = NODE_VERSION.slice(1).split('.').map(Number);
 
 // Parse Node version to determine require(esm) support
-const supportsRequireESM = 
-  (major === 20 && minor >= 19) ||
-  (major === 22 && minor >= 12) ||
-  (major >= 23);
+const supportsRequireESM =
+  (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major >= 23;
 
 console.log(`Running consumer smoke test on Node ${NODE_VERSION}`);
 console.log(`require(esm) support: ${supportsRequireESM ? 'YES' : 'NO'}\n`);
