@@ -43,3 +43,6 @@ coverage/
 
 # Temporary commit message files
 .commit-msg*
+
+# JUnit test results
+forwarder_test_results.xml
