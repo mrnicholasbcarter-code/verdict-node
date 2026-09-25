@@ -40,3 +40,6 @@ coverage/
 
 # Package tarballs
 *.tgz
+
+# Temporary commit message files
+.commit-msg*

@@ -241,4 +241,58 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
       expect(verdict).toBe(EnvelopeVerdict.EXPIRED);
     });
   });
+
+  // Node-local tests (not in Core corpus yet)
+  describe('Node-local: Infinity fail-open', () => {
+    const evaluationTime = v1Manifest.evaluation_time;
+    const expectedDigest = v1Manifest.expected_policy_digest;
+
+    test('budget_usd: Infinity → REJECT_UNKNOWN', () => {
+      const base = loadFixture('accepted.json') as Record<string, unknown>;
+      const envelope = {
+        ...base,
+        execution_constraints: {
+          ...(base.execution_constraints as Record<string, unknown>),
+          budget_usd: Infinity,
+        },
+      };
+      const verdict = verifyExecutionEnvelope(envelope, {
+        now: evaluationTime,
+        expectedPolicyDigest: expectedDigest,
+      });
+      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
+    });
+
+    test('max_request_usd: Infinity → REJECT_UNKNOWN', () => {
+      const base = loadFixture('accepted.json') as Record<string, unknown>;
+      const envelope = {
+        ...base,
+        execution_constraints: {
+          ...(base.execution_constraints as Record<string, unknown>),
+          max_request_usd: Infinity,
+        },
+      };
+      const verdict = verifyExecutionEnvelope(envelope, {
+        now: evaluationTime,
+        expectedPolicyDigest: expectedDigest,
+      });
+      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
+    });
+
+    test('max_latency_ms: Infinity → REJECT_UNKNOWN', () => {
+      const base = loadFixture('accepted.json') as Record<string, unknown>;
+      const envelope = {
+        ...base,
+        execution_constraints: {
+          ...(base.execution_constraints as Record<string, unknown>),
+          max_latency_ms: Infinity,
+        },
+      };
+      const verdict = verifyExecutionEnvelope(envelope, {
+        now: evaluationTime,
+        expectedPolicyDigest: expectedDigest,
+      });
+      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
+    });
+  });
 });

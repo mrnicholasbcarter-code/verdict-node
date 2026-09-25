@@ -201,26 +201,31 @@ export function verifyExecutionEnvelope(
   }
 
   // Step 1l: Validate constraint VALUES (bd70412f)
-  // budget_usd: non-negative number (not boolean)
+  // budget_usd: non-negative finite number (not boolean, not Infinity)
   if ('budget_usd' in cons) {
     const budgetUsd = cons.budget_usd;
-    if (typeof budgetUsd !== 'number' || budgetUsd < 0) {
+    if (typeof budgetUsd !== 'number' || budgetUsd < 0 || !Number.isFinite(budgetUsd)) {
       return EnvelopeVerdict.REJECT_UNKNOWN;
     }
   }
 
-  // max_request_usd: non-negative number (not boolean)
+  // max_request_usd: non-negative finite number (not boolean, not Infinity)
   if ('max_request_usd' in cons) {
     const maxRequestUsd = cons.max_request_usd;
-    if (typeof maxRequestUsd !== 'number' || maxRequestUsd < 0) {
+    if (typeof maxRequestUsd !== 'number' || maxRequestUsd < 0 || !Number.isFinite(maxRequestUsd)) {
       return EnvelopeVerdict.REJECT_UNKNOWN;
     }
   }
 
-  // max_latency_ms: non-negative integer (1.0 ok, 1.5 not; not boolean)
+  // max_latency_ms: non-negative finite integer (1.0 ok, 1.5 not; not boolean, not Infinity)
   if ('max_latency_ms' in cons) {
     const maxLatencyMs = cons.max_latency_ms;
-    if (typeof maxLatencyMs !== 'number' || maxLatencyMs < 0 || !Number.isInteger(maxLatencyMs)) {
+    if (
+      typeof maxLatencyMs !== 'number' ||
+      maxLatencyMs < 0 ||
+      !Number.isFinite(maxLatencyMs) ||
+      !Number.isInteger(maxLatencyMs)
+    ) {
       return EnvelopeVerdict.REJECT_UNKNOWN;
     }
   }
