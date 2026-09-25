@@ -7,13 +7,16 @@ on:
 jobs:
   clean-install:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['20.x', '22.x', '24.x']
     env:
       OMNIROUTE_BASE_URL: http://127.0.0.1:20132/v1
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.x'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - name: Clone verdict-core (canonical contracts pkg)
         run: git clone --depth 1 https://github.com/mrnicholasbcarter-code/verdict-core.git /tmp/verdict-core
@@ -37,6 +40,8 @@ jobs:
         run: npm test
       - name: Verify shipped package in a clean consumer
         run: npm run verify:package
+      - name: Run consumer smoke test (version-specific require validation)
+        run: npm run consumer:smoke
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
@@ -54,11 +59,14 @@ jobs:
     # and `npm link` it to guarantee the TS side tests against the canonical
     # (source-of-truth) Zod schemas, not a stale npm release.
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['20.x', '22.x', '24.x']
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.x'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - name: Clone verdict-core (Python source of truth + contracts pkg)
         run: git clone --depth 1 https://github.com/mrnicholasbcarter-code/verdict-core.git /tmp/verdict-core

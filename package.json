@@ -24,7 +24,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "repository": {
     "type": "git",
@@ -45,7 +45,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" \"*.json\" \".github/workflows/*.yml\"",
     "pack:dry-run": "npm pack --dry-run",
     "verify:package": "npm run build && node scripts/verify-package.mjs",
-    "consumer:smoke": "node scripts/consumer-smoke.mjs"
+    "consumer:smoke": "npm run build && node scripts/consumer-smoke.mjs"
   },
   "keywords": [
     "llm",

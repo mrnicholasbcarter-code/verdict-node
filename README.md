@@ -307,7 +307,10 @@ MIT — see [LICENSE](LICENSE)
 
 ## CJS Support
 
-This package supports both **ESM and CommonJS**.
+This package is **ESM-only**. CommonJS consumers can use `require()` on Node versions that support `require(esm)`:
+
+- **Node >= 20.19.0**
+- **Node >= 22.12.0**
 
 **ESM (recommended)**:
 
@@ -315,8 +318,10 @@ This package supports both **ESM and CommonJS**.
 import { verifyExecutionEnvelope } from '@bodanglin/verdict-node';
 ```
 
-**CommonJS**:
+**CommonJS** (requires Node >= 20.19 or >= 22.12):
 
 ```javascript
 const { verifyExecutionEnvelope } = require('@bodanglin/verdict-node');
 ```
+
+Older Node versions must use ESM imports or upgrade to a supported version.
