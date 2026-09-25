@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install verdict-core (compat gate)
-        run: pip install "git+https://github.com/mrnicholasbcarter-code/verdict-core.git@main"
+        run: pip install "verdict-core==0.3.0"
       - name: Verify compat manifest gate
         run: verdict compat check --declared .verdict/compat-manifest.json --json
   contract-parity:
@@ -93,6 +93,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
+      # NOTE: The package dependency itself is published ^0.3.0 (see package.json).
+      # This job intentionally tests against the source-of-truth main branch so
+      # the TS fixture set stays in sync with the latest Python canonical schemas.
       - name: Install verdict-core (Python source of truth)
         run: pip install "git+https://github.com/mrnicholasbcarter-code/verdict-core.git@main"
       - name: Fixture set matches verdict-core canonical copy
