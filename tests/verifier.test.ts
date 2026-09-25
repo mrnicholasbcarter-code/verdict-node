@@ -9,17 +9,15 @@ import { verifyExecutionEnvelope, EnvelopeVerdict } from '../src/verifier';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load the manifest and fixtures
-const fixturesDir = join(__dirname, '../contracts/fixtures/execution-envelope/v1');
-const manifest = JSON.parse(readFileSync(join(fixturesDir, 'manifest.json'), 'utf-8'));
+// Load the manifests and fixtures
+const v1FixturesDir = join(__dirname, '../contracts/fixtures/execution-envelope/v1');
+const v1MutationsDir = join(__dirname, '../contracts/fixtures/execution-envelope/v1-mutations');
 
-// Load Core parity differential test cases
-const parityFixture = JSON.parse(
-  readFileSync(join(__dirname, 'fixtures/core-parity-cases.json'), 'utf-8')
-);
+const v1Manifest = JSON.parse(readFileSync(join(v1FixturesDir, 'manifest.json'), 'utf-8'));
+const mutationsManifest = JSON.parse(readFileSync(join(v1MutationsDir, 'manifest.json'), 'utf-8'));
 
 function loadFixture(name: string): unknown {
-  const content = readFileSync(join(fixturesDir, name), 'utf-8');
+  const content = readFileSync(join(v1FixturesDir, name), 'utf-8');
   return JSON.parse(content);
 }
 
@@ -32,14 +30,29 @@ function fileSha256(path: string): string {
 }
 
 describe('ExecutionEnvelope v1 Fixtures', () => {
-  // Verify the vendored manifest is byte-identical to Core
+  // Verify the vendored manifests are byte-identical to Core
   describe('Manifest integrity', () => {
-    test('vendored manifest.json file SHA-256 matches Core', () => {
-      const manifestPath = join(fixturesDir, 'manifest.json');
+    test('v1/manifest.json file SHA-256 matches Core bd70412f', () => {
+      const manifestPath = join(v1FixturesDir, 'manifest.json');
       const actualSha = fileSha256(manifestPath);
-      // This constant is recorded in contracts/fixtures/execution-envelope/v1/README.md
-      // and matches verdict-core SHA 15d1f8f9edcd37250655331a425a07d5767a98eb
       const expectedSha = '4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656';
+      expect(actualSha).toBe(expectedSha);
+    });
+
+    test('v1-mutations/manifest.json file SHA-256 matches Core bd70412f', () => {
+      const manifestPath = join(v1MutationsDir, 'manifest.json');
+      const actualSha = fileSha256(manifestPath);
+      const expectedSha = '6fe1daca31d75fb2f7db7e9796ee5ae76ed7e5111a64e334d046f7eff2383a07';
+      expect(actualSha).toBe(expectedSha);
+    });
+
+    test('v1-mutations/cases.json file SHA-256 matches manifest.cases_digest', () => {
+      const casesPath = join(v1MutationsDir, 'cases.json');
+      const actualSha = fileSha256(casesPath);
+      // manifest.cases_digest is "sha256:<hex>", extract the hex part
+      const expectedDigest = mutationsManifest.cases_digest;
+      expect(expectedDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
+      const expectedSha = expectedDigest.replace('sha256:', '');
       expect(actualSha).toBe(expectedSha);
     });
   });
@@ -47,8 +60,8 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
   // Verify fixture files match their raw file SHA-256 hashes
   describe('Fixture integrity', () => {
     test('fixture files match their raw file SHA-256 hashes from manifest', () => {
-      for (const [filename, meta] of Object.entries(manifest.fixtures)) {
-        const fixturePath = join(fixturesDir, filename);
+      for (const [filename, meta] of Object.entries(v1Manifest.fixtures)) {
+        const fixturePath = join(v1FixturesDir, filename);
         const actualSha = fileSha256(fixturePath);
         expect(actualSha).toBe((meta as { sha256: string; expected_verdict: string }).sha256);
       }
@@ -56,9 +69,9 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
   });
 
   // Test each canonical fixture
-  describe('Canonical fixtures', () => {
-    const evaluationTime = manifest.evaluation_time;
-    const expectedDigest = manifest.expected_policy_digest;
+  describe('Canonical fixtures (v1)', () => {
+    const evaluationTime = v1Manifest.evaluation_time;
+    const expectedDigest = v1Manifest.expected_policy_digest;
 
     test('accepted.json → ACCEPT', () => {
       const envelope = loadFixture('accepted.json');
@@ -115,10 +128,46 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
     });
   });
 
+  // Mutation corpus: load base fixture, apply override, verify expected verdict
+  describe('Mutation corpus (v1-mutations): Core parity differential', () => {
+    const evaluationTime = mutationsManifest.evaluation_time;
+    const expectedDigest = mutationsManifest.expected_policy_digest;
+
+    // Load the mutation cases
+    const casesPath = join(v1MutationsDir, 'cases.json');
+    const cases = JSON.parse(readFileSync(casesPath, 'utf-8')) as Array<{
+      id: string;
+      base: string;
+      override: Record<string, unknown>;
+      expected_verdict: string;
+    }>;
+
+    // Test each mutation case
+    for (const mutationCase of cases) {
+      test(`${mutationCase.id} → ${mutationCase.expected_verdict}`, () => {
+        // Load base fixture
+        const base = loadFixture(mutationCase.base) as Record<string, unknown>;
+
+        // Apply override (top-level keys replaced)
+        const envelope = { ...base, ...mutationCase.override };
+
+        // Verify
+        const verdict = verifyExecutionEnvelope(envelope, {
+          now: evaluationTime,
+          expectedPolicyDigest: expectedDigest,
+        });
+
+        expect(verdict).toBe(
+          EnvelopeVerdict[mutationCase.expected_verdict as keyof typeof EnvelopeVerdict]
+        );
+      });
+    }
+  });
+
   // Garbage table: invalid inputs that must never return ACCEPT or throw
   describe('Garbage table (never ACCEPT, never throw)', () => {
-    const evaluationTime = manifest.evaluation_time;
-    const expectedDigest = manifest.expected_policy_digest;
+    const evaluationTime = v1Manifest.evaluation_time;
+    const expectedDigest = v1Manifest.expected_policy_digest;
 
     test('primitive number → REJECT_UNKNOWN', () => {
       const verdict = verifyExecutionEnvelope(1, {
@@ -169,73 +218,10 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
     });
   });
 
-  // Core parity: structural validation happens FIRST
-  describe('Core parity: structural checks before specific checks', () => {
-    const evaluationTime = manifest.evaluation_time;
-    const expectedDigest = manifest.expected_policy_digest;
-
-    test('execution_constraints = "x" → REJECT_UNKNOWN (not EXPIRED)', () => {
-      const base = loadFixture('accepted.json') as Record<string, unknown>;
-      const envelope = {
-        ...base,
-        execution_constraints: 'x',
-      };
-      const verdict = verifyExecutionEnvelope(envelope, {
-        now: evaluationTime,
-        expectedPolicyDigest: expectedDigest,
-      });
-      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
-    });
-
-    test('execution_constraints = null → REJECT_UNKNOWN (not EXPIRED)', () => {
-      const base = loadFixture('accepted.json') as Record<string, unknown>;
-      const envelope = {
-        ...base,
-        execution_constraints: null,
-      };
-      const verdict = verifyExecutionEnvelope(envelope, {
-        now: evaluationTime,
-        expectedPolicyDigest: expectedDigest,
-      });
-      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
-    });
-
-    test('policy_digest = null → REJECT_UNKNOWN (not DIGEST_MISMATCH)', () => {
-      const base = loadFixture('accepted.json') as Record<string, unknown>;
-      const envelope = {
-        ...base,
-        policy_digest: null,
-      };
-      const verdict = verifyExecutionEnvelope(envelope, {
-        now: evaluationTime,
-        expectedPolicyDigest: expectedDigest,
-      });
-      expect(verdict).toBe(EnvelopeVerdict.REJECT_UNKNOWN);
-    });
-  });
-
-  // Differential test: Core-computed verdicts for 16 mutation cases
-  describe('Core parity differential: 16 mutation cases', () => {
-    const evaluationTime = parityFixture.evaluation_time;
-    const expectedDigest = parityFixture.expected_policy_digest;
-
-    for (const [caseName, caseData] of Object.entries(parityFixture.cases)) {
-      test(`${caseName}: ${(caseData as any).description} → ${(caseData as any).expected_verdict}`, () => {
-        const envelope = (caseData as any).envelope;
-        const expectedVerdict = (caseData as any).expected_verdict as string;
-        const verdict = verifyExecutionEnvelope(envelope, {
-          now: evaluationTime,
-          expectedPolicyDigest: expectedDigest,
-        });
-        expect(verdict).toBe(EnvelopeVerdict[expectedVerdict as keyof typeof EnvelopeVerdict]);
-      });
-    }
-  });
-
   // Additional fail-closed validation
   describe('Additional validation rules', () => {
-    const evaluationTime = manifest.evaluation_time;
-    const expectedDigest = manifest.expected_policy_digest;
+    const evaluationTime = v1Manifest.evaluation_time;
+    const expectedDigest = v1Manifest.expected_policy_digest;
 
     test('unparseable now → EXPIRED', () => {
       const envelope = loadFixture('accepted.json');

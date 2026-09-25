@@ -57,6 +57,9 @@ const KNOWN_CONSTRAINT_FIELDS = new Set([
   'expires_at',
 ]);
 
+// Valid risk_ceiling enum values
+const VALID_RISK_CEILING = new Set(['unknown', 'low', 'medium', 'high', 'critical']);
+
 /**
  * Verify an ExecutionEnvelope against Core's canonical rules.
  *
@@ -69,7 +72,13 @@ const KNOWN_CONSTRAINT_FIELDS = new Set([
  *    - Top-level fields validated against Core schema types
  *    - Nested objects (task_spec, verification_requirements) validated against Zod schemas
  *    - execution_constraints must be a plain object with only canonical keys
- *    - policy_digest must be a 64-char hex string
+ *    - policy_digest must be 64 lowercase hex chars (no prefix)
+ *    - execution_constraints VALUES validated (bd70412f):
+ *      * budget_usd, max_request_usd: non-negative numbers (not booleans)
+ *      * max_latency_ms: non-negative integer (1.0 ok, 1.5 not; not booleans)
+ *      * risk_ceiling: enum {unknown, low, medium, high, critical}
+ *      * allowed_models, allowed_tools, allowed_agents, required_verification: arrays of non-empty strings
+ *      * expires_at: string
  *
  * 2. Eligibility: eligibility_decision.admitted must be true AND no contradictory signals
  *    - admitted is not true → DENY
@@ -92,7 +101,7 @@ const KNOWN_CONSTRAINT_FIELDS = new Set([
  * @param options - Verification parameters (now and expectedPolicyDigest are REQUIRED)
  * @returns The verdict enum value
  *
- * @see https://github.com/mrnicholasbcarter-code/verdict-core/blob/15d1f8f9edcd37250655331a425a07d5767a98eb/docs/contracts/EXECUTION_ENVELOPE_V1.md
+ * @see https://github.com/mrnicholasbcarter-code/verdict-core/blob/bd70412f8050f89a8a8b6fd9c914e3cdadbf112f/docs/contracts/EXECUTION_ENVELOPE_V1.md
  */
 export function verifyExecutionEnvelope(
   envelope: unknown,
@@ -139,9 +148,9 @@ export function verifyExecutionEnvelope(
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
-  // Step 1e: Validate policy_digest is a 64-char hex string
+  // Step 1e: Validate policy_digest is 64 LOWERCASE hex chars (bd70412f: no uppercase, no prefix)
   const digest = env.policy_digest;
-  if (typeof digest !== 'string' || !/^[a-fA-F0-9]{64}$/.test(digest)) {
+  if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest)) {
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
@@ -191,7 +200,92 @@ export function verifyExecutionEnvelope(
     }
   }
 
-  // Step 1l: Validate eligibility_decision is a plain object (structural check)
+  // Step 1l: Validate constraint VALUES (bd70412f)
+  // budget_usd: non-negative number (not boolean)
+  if ('budget_usd' in cons) {
+    const budgetUsd = cons.budget_usd;
+    if (typeof budgetUsd !== 'number' || budgetUsd < 0) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // max_request_usd: non-negative number (not boolean)
+  if ('max_request_usd' in cons) {
+    const maxRequestUsd = cons.max_request_usd;
+    if (typeof maxRequestUsd !== 'number' || maxRequestUsd < 0) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // max_latency_ms: non-negative integer (1.0 ok, 1.5 not; not boolean)
+  if ('max_latency_ms' in cons) {
+    const maxLatencyMs = cons.max_latency_ms;
+    if (typeof maxLatencyMs !== 'number' || maxLatencyMs < 0 || !Number.isInteger(maxLatencyMs)) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // risk_ceiling: enum {unknown, low, medium, high, critical}
+  if ('risk_ceiling' in cons) {
+    const riskCeiling = cons.risk_ceiling;
+    if (typeof riskCeiling !== 'string' || !VALID_RISK_CEILING.has(riskCeiling)) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // allowed_models: array of non-empty strings
+  if ('allowed_models' in cons) {
+    const allowedModels = cons.allowed_models;
+    if (
+      !Array.isArray(allowedModels) ||
+      !allowedModels.every(item => typeof item === 'string' && item.length > 0)
+    ) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // allowed_tools: array of non-empty strings
+  if ('allowed_tools' in cons) {
+    const allowedTools = cons.allowed_tools;
+    if (
+      !Array.isArray(allowedTools) ||
+      !allowedTools.every(item => typeof item === 'string' && item.length > 0)
+    ) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // allowed_agents: array of non-empty strings
+  if ('allowed_agents' in cons) {
+    const allowedAgents = cons.allowed_agents;
+    if (
+      !Array.isArray(allowedAgents) ||
+      !allowedAgents.every(item => typeof item === 'string' && item.length > 0)
+    ) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // required_verification: array of non-empty strings
+  if ('required_verification' in cons) {
+    const requiredVerification = cons.required_verification;
+    if (
+      !Array.isArray(requiredVerification) ||
+      !requiredVerification.every(item => typeof item === 'string' && item.length > 0)
+    ) {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // expires_at: must be a string if present (verified later for actual expiry)
+  if ('expires_at' in cons) {
+    const expiresAt = cons.expires_at;
+    if (typeof expiresAt !== 'string') {
+      return EnvelopeVerdict.REJECT_UNKNOWN;
+    }
+  }
+
+  // Step 1m: Validate eligibility_decision is a plain object (structural check)
   const eligibility = env.eligibility_decision;
   if (!eligibility || typeof eligibility !== 'object' || Array.isArray(eligibility)) {
     return EnvelopeVerdict.REJECT_UNKNOWN;
@@ -199,7 +293,7 @@ export function verifyExecutionEnvelope(
 
   const elig = eligibility as Record<string, unknown>;
 
-  // Step 1m: Validate nested task_spec against canonical Zod schema
+  // Step 1n: Validate nested task_spec against canonical Zod schema
   const taskSpec = env.task_spec;
   try {
     const parsed = contractSchemas.task_spec.safeParse(taskSpec);
@@ -210,7 +304,7 @@ export function verifyExecutionEnvelope(
     return EnvelopeVerdict.REJECT_UNKNOWN;
   }
 
-  // Step 1n: Validate nested verification_requirements against canonical Zod schema
+  // Step 1o: Validate nested verification_requirements against canonical Zod schema
   const verificationReqs = env.verification_requirements;
   try {
     const parsed = contractSchemas.verification_plan.safeParse(verificationReqs);

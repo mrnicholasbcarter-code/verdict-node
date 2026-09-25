@@ -1,0 +1,95 @@
+feat: re-vendor Core fixtures bd70412f with mutation corpus
+
+Re-vendored from verdict-core bd70412f8050f89a8a8b6fd9c914e3cdadbf112f with:
+- v1/ fixtures (6 canonical cases, unchanged since 15d1f8f)
+- v1-mutations/ NEW mutation corpus (34 differential cases)
+
+Replaced hand-written core-parity-cases.json with vendored mutation corpus
+as the single source of truth.
+
+## Contract Changes (bd70412f)
+
+### policy_digest
+- Must be exactly 64 LOWERCASE hex chars (pattern ^[a-f0-9]{64}$)
+- No "sha256:" prefix allowed in envelope
+- Uppercase or malformed → REJECT_UNKNOWN
+- Well-formed but different → DIGEST_MISMATCH
+
+### execution_constraints VALUE validation
+- budget_usd, max_request_usd: non-negative numbers (not booleans)
+- max_latency_ms: non-negative integer (1.0 ok, 1.5 not; not booleans)
+- risk_ceiling: enum {unknown, low, medium, high, critical}
+- allowed_models, allowed_tools, allowed_agents, required_verification:
+  arrays of non-empty strings
+- expires_at: string
+- Any violation → REJECT_UNKNOWN
+
+## Changes
+
+### Verifier (src/verifier.ts)
+- Updated policy_digest pattern to lowercase-only (^[a-f0-9]{64}$)
+- Added execution_constraints value validation:
+  * Step 1l: budget_usd / max_request_usd non-negative numbers
+  * Step 1l: max_latency_ms non-negative integer (1.0 counts, 1.5 doesn't)
+  * Step 1l: risk_ceiling enum validation
+  * Step 1l: allowed_models/tools/agents/required_verification non-empty string arrays
+  * Step 1l: expires_at must be string if present
+
+### Tests (tests/verifier.test.ts)
+- Replaced hand-written differential with vendored v1-mutations corpus
+- Added manifest integrity checks (file SHA-256)
+- Added corpus integrity check (cases.json SHA-256 == manifest.cases_digest)
+- Test each mutation case: load base + apply override + assert exact verdict
+- Deleted tests/fixtures/core-parity-cases.json (replaced by corpus)
+
+### Fixtures
+- Vendored v1-mutations/ (NEW): 34 mutation cases with Core verdicts
+- Re-vendored v1/: 6 canonical fixtures (unchanged)
+- Updated README: Core SHA bd70412f, manifest hashes, corpus metadata
+
+## Test Results
+
+**34/34 mutation corpus cases pass** with exact Core Python verdicts:
+- cons_str, cons_null, cons_list, noncanon_key → REJECT_UNKNOWN
+- no_expires_at, naive_expires → EXPIRED
+- adm_denied, adm_decision_deny, adm_decision_ACCEPT_upper → DENY
+- elig_null, elig_admitted_1 → REJECT_UNKNOWN, DENY
+- digest_null, digest_empty, digest_other_valid_hex → REJECT_UNKNOWN, DIGEST_MISMATCH
+- task_spec_list, task_spec_unknown_key, task_spec_empty → REJECT_UNKNOWN
+- verification_list, verification_unknown_key → REJECT_UNKNOWN
+- caps_str, evidence_obj, schema_version_2, routing_str, created_int → REJECT_UNKNOWN
+- extra_top_field → REJECT_UNKNOWN
+- budget_negative, risk_bad_enum, latency_float_fraction → REJECT_UNKNOWN
+- allowed_models_empty_string → REJECT_UNKNOWN
+- digest_not_hex, digest_short_hex → REJECT_UNKNOWN
+- budget_bool, latency_bool → REJECT_UNKNOWN
+- latency_float_integral → ACCEPT ✓ (1.0 is an integer)
+
+**6/6 canonical fixtures pass**:
+- accepted.json → ACCEPT
+- denied.json → DENY
+- expired.json → EXPIRED
+- wrong-digest.json → DIGEST_MISMATCH
+- unknown-field.json → REJECT_UNKNOWN
+- null-defaults.json → ACCEPT
+
+**5/5 garbage table cases**: all REJECT_UNKNOWN, 0 throws
+
+## Verification
+
+All checks passed:
+- ✅ npm run build
+- ✅ npm run lint
+- ✅ npm run format:check
+- ✅ npm run typecheck
+- ✅ npm test (275 tests total, 51 verifier tests)
+- ✅ npm run verify:package
+- ✅ npm run consumer:smoke
+
+**Manifest integrity**: v1 and v1-mutations manifests match Core bd70412f
+**Fixture integrity**: All fixture files match their raw SHA-256 hashes
+**Corpus integrity**: cases.json matches manifest.cases_digest
+
+**40/40 total inputs tested (6 canonical + 34 corpus)**
+**All verdicts match Core Python verify_execution_envelope**
+**0 fail-open cases, 0 ACCEPT from adversarial inputs, 0 throws**
