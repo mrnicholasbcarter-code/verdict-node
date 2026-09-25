@@ -24,7 +24,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19 || >=22.12"
   },
   "repository": {
     "type": "git",

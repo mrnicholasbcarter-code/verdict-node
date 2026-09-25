@@ -7,7 +7,7 @@
  * 1. ESM import of root and ./middleware subpath
  * 2. TypeScript compilation against shipped .d.ts
  * 3. Package file list (only allowlisted files)
- * 4. CJS require() behavior
+ * 4. CJS require() behavior (works on Node >= 20.19 / >= 22.12)
  */
 
 import { execSync } from 'child_process';
@@ -20,7 +20,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
 
 const NODE_VERSION = process.version;
-console.log(`Running consumer smoke test on Node ${NODE_VERSION}\n`);
+const [major, minor] = NODE_VERSION.slice(1).split('.').map(Number);
+
+// Parse Node version to determine require(esm) support
+const supportsRequireESM = 
+  (major === 20 && minor >= 19) ||
+  (major === 22 && minor >= 12) ||
+  (major >= 23);
+
+console.log(`Running consumer smoke test on Node ${NODE_VERSION}`);
+console.log(`require(esm) support: ${supportsRequireESM ? 'YES' : 'NO'}\n`);
 
 // Create a temp directory
 const tempDir = mkdtempSync(join(tmpdir(), 'verdict-node-smoke-'));
@@ -130,20 +139,41 @@ console.log('TypeScript compilation: OK');
 
   execSync('npx tsc --noEmit', { cwd: tempDir, stdio: 'inherit' });
 
-  // 7. Test CJS require() behavior
+  // 7. Test CJS require() behavior according to Node version
   console.log('\n7. Testing CJS require() behavior...');
   const cjsTest = `
+const supportsRequireESM = ${supportsRequireESM};
+
 try {
   const mod = require('@bodanglin/verdict-node');
-  console.log('CJS require: SUPPORTED');
-  console.log('  Exports:', Object.keys(mod).join(', '));
+  
+  if (supportsRequireESM) {
+    console.log('CJS require: SUPPORTED (as documented for Node >= 20.19 / >= 22.12)');
+    console.log('  Exports:', Object.keys(mod).join(', '));
+    
+    if (typeof mod.verifyExecutionEnvelope !== 'function') {
+      console.error('ERROR: verifyExecutionEnvelope is not a function in CJS');
+      process.exit(1);
+    }
+  } else {
+    console.error('ERROR: require() should have failed on Node ${NODE_VERSION}');
+    console.error('  This version does not support require(esm)');
+    process.exit(1);
+  }
 } catch (err) {
   if (err.code === 'ERR_REQUIRE_ESM') {
-    console.log('CJS require: NOT SUPPORTED (ESM-only package)');
-    console.log('  This is expected for pure ESM packages.');
+    if (supportsRequireESM) {
+      console.error('ERROR: require() failed on Node ${NODE_VERSION} but should work');
+      console.error('  This version supports require(esm)');
+      throw err;
+    } else {
+      console.log('CJS require: NOT SUPPORTED (expected on Node ${NODE_VERSION})');
+      console.log('  This version does not support require(esm)');
+      console.log('  Use ESM imports or upgrade to Node >= 20.19 / >= 22.12');
+    }
   } else {
-    console.error('CJS require: ERROR', err.message);
-    process.exit(1);
+    console.error('CJS require: UNEXPECTED ERROR', err.message);
+    throw err;
   }
 }
 `;
