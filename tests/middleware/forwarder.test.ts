@@ -776,19 +776,19 @@ describe('Forwarder Middleware', () => {
           workflow: null,
           metadata: {},
         },
-        eligibility_decision: { admitted: ['gpt-4'], reason: 'test' },
-        policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        eligibility_decision: { admitted: true, reason: 'test' }, // CI strict schema: boolean
+        policy_digest: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', // No prefix
         allowed_capabilities: ['chat'],
         execution_constraints: {
           allowed_models: ['gpt-4'],
           allowed_tools: ['get_weather'],
           max_request_usd: 1.0,
+          expires_at: new Date(Date.now() + 3600000).toISOString(), // In constraints for strict schema
         },
         verification_requirements: { checks: [] },
         evidence_ids: ['evidence-1'],
         routing_decision: null,
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 3600000).toISOString(),
         ...overrides,
       };
     }

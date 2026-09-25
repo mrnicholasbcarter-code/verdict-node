@@ -9,6 +9,48 @@
 
 ---
 
+## ExecutionEnvelope Verification
+
+This package includes canonical ExecutionEnvelope v1 verification following the [verdict-core contract specification](https://github.com/mrnicholasbcarter-code/verdict-core/blob/80ebaf23278473bb48bde807c1c3867e980a6e14/docs/contracts/EXECUTION_ENVELOPE_V1.md).
+
+### Verification Rules
+
+The verifier implements fail-closed validation:
+
+1. **Schema Validation**: Rejects unknown fields (strict v1 contract)
+2. **Eligibility**: `admitted` must be `true` with no contradictory deny signals
+3. **Digest Check**: `policy_digest` must match the expected value
+4. **Expiry Check**: `execution_constraints.expires_at` is REQUIRED
+   - Missing expiry → EXPIRED (fail closed: envelopes MUST have bounded lifetime)
+   - Timezone-naive timestamps → EXPIRED
+   - Unparseable timestamps → EXPIRED
+   - `now >= expires_at` → EXPIRED
+
+**The verifier never throws on untrusted input.** Malformed data returns `REJECT_UNKNOWN`.
+
+### Usage
+
+```typescript
+import { verifyExecutionEnvelope, EnvelopeVerdict } from '@bodanglin/verdict-node';
+
+const verdict = verifyExecutionEnvelope(envelope, {
+  now: '2024-01-15T12:30:00Z',
+  expectedPolicyDigest: 'a'.repeat(64),
+});
+
+if (verdict === EnvelopeVerdict.ACCEPT) {
+  // Envelope is valid
+} else {
+  // Handle DENY, EXPIRED, DIGEST_MISMATCH, or REJECT_UNKNOWN
+}
+```
+
+### Canonical Fixtures
+
+The package vendors canonical test fixtures from verdict-core at SHA `80ebaf23278473bb48bde807c1c3867e980a6e14`.
+
+See `contracts/fixtures/execution-envelope/v1/README.md` for details.
+
 ## What is @bodanglin/verdict-node?
 
 `@bodanglin/verdict-node` is a TypeScript middleware library for Express and Next.js. In plain terms, it sits in front of your app's calls to an OpenAI-compatible API and checks each request before it goes out — it does not decide what is allowed; that is the job of **Verdict Core** (the Python control plane). This package's job is to enforce Core's decision at the HTTP edge: **core decides, node enforces**.
@@ -262,3 +304,19 @@ verdict-node/
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+## CJS Support
+
+This package supports both **ESM and CommonJS**.
+
+**ESM (recommended)**:
+
+```javascript
+import { verifyExecutionEnvelope } from '@bodanglin/verdict-node';
+```
+
+**CommonJS**:
+
+```javascript
+const { verifyExecutionEnvelope } = require('@bodanglin/verdict-node');
+```

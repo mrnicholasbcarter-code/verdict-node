@@ -1,2 +1,6 @@
  coverage/
 .github/
+
+# Vendored Core fixtures - must remain byte-identical, never reformat
+test_fixtures/
+contracts/fixtures/

@@ -55,19 +55,19 @@ describe('canonical routing contract parity', () => {
           workflow: null,
           metadata: {},
         },
-        eligibility_decision: { admitted: ['gpt-4o'], reason: 'test' },
-        policy_digest: 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        eligibility_decision: { admitted: true, reason: 'test' }, // CI strict: boolean
+        policy_digest: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', // No prefix
         allowed_capabilities: ['chat'],
         execution_constraints: {
           allowed_models: ['gpt-4o', 'claude-3-5-sonnet'],
           allowed_tools: ['read_file', 'write_file'],
           max_request_usd: 1.0,
+          expires_at: new Date(Date.now() + 3600000).toISOString(), // CI strict: in constraints
         },
         verification_requirements: { checks: [] },
         evidence_ids: ['evidence-1'],
         routing_decision: null,
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 3600000).toISOString(),
         ...overrides,
       };
     }

@@ -105,6 +105,25 @@ export interface ForwarderConfig {
   onError?: (error: UpstreamError, req: Request, res: ExpressResponse) => void;
 }
 
+/**
+ * Enforce execution envelope constraints for middleware use.
+ *
+ * This function validates and enforces envelope constraints, throwing errors
+ * when violations are detected. It is designed for Express middleware integration
+ * where exceptions can be caught and converted to HTTP error responses.
+ *
+ * For pure verification without exceptions, use `verifyExecutionEnvelope()` from
+ * the root export, which implements the canonical Core verification rules and
+ * returns verdict enums instead of throwing.
+ *
+ * **Relationship to verifyExecutionEnvelope**:
+ * - `verifyExecutionEnvelope()`: Pure function, never throws, returns verdict enum
+ * - `enforceExecutionEnvelope()`: Middleware helper, throws on violations
+ *
+ * These serve different use cases and are both maintained:
+ * - Use verifyExecutionEnvelope() for contract parity testing and non-throwing verification
+ * - Use enforceExecutionEnvelope() for Express middleware error handling
+ */
 export function enforceExecutionEnvelope(
   envelope: unknown,
   request: { model: string; tools?: Array<{ function?: { name?: string } }> },
