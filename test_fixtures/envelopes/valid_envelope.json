@@ -22,7 +22,7 @@
     "admitted": ["gpt-4"],
     "reason": "test"
   },
-  "policy_digest": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "policy_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "allowed_capabilities": ["chat"],
   "execution_constraints": {
     "allowed_models": ["gpt-4"]

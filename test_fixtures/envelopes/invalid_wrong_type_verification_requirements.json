@@ -18,10 +18,15 @@
     "workflow": null,
     "metadata": {}
   },
-  "eligibility_decision": { "admitted": ["gpt-4"], "reason": "test" },
-  "policy_digest": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "eligibility_decision": {
+    "admitted": ["gpt-4"],
+    "reason": "test"
+  },
+  "policy_digest": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
   "allowed_capabilities": ["chat"],
-  "execution_constraints": { "allowed_models": ["gpt-4"] },
+  "execution_constraints": {
+    "allowed_models": ["gpt-4"]
+  },
   "verification_requirements": "not an object",
   "evidence_ids": ["evidence-1"],
   "routing_decision": null,
