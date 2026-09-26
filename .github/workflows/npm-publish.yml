@@ -48,6 +48,10 @@ jobs:
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted-publishing support
+        run: |
+          npm install --global npm@11.5.1
+          npm --version | grep -E '^11\.(5\.[1-9]|[6-9]\.|[1-9][0-9]\.)'
       - name: Install dependencies
         run: npm ci
       - name: Build
