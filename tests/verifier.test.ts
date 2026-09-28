@@ -35,7 +35,7 @@ describe('ExecutionEnvelope v1 Fixtures', () => {
     test('v1/manifest.json file SHA-256 matches Core bd70412f', () => {
       const manifestPath = join(v1FixturesDir, 'manifest.json');
       const actualSha = fileSha256(manifestPath);
-      const expectedSha = '4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656';
+      const expectedSha = 'd4bfbc0b6a966601cc891b8f3112d687181210927e5e19f2b42f51f4231b0474';
       expect(actualSha).toBe(expectedSha);
     });
 

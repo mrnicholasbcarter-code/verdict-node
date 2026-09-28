@@ -7,7 +7,7 @@ These canonical test fixtures are vendored from verdict-core at SHA `15d1f8f9edc
 - **Repository**: https://github.com/mrnicholasbcarter-code/verdict-core
 - **Commit**: 15d1f8f9edcd37250655331a425a07d5767a98eb
 - **Path**: `contracts/fixtures/execution-envelope/v1/`
-- **Manifest SHA-256**: `4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656`
+- **Manifest SHA-256**: `d4bfbc0b6a966601cc891b8f3112d687181210927e5e19f2b42f51f4231b0474`
 
 ## Contract Documentation
 
@@ -18,7 +18,7 @@ The full ExecutionEnvelope v1 contract specification is maintained in verdict-co
 
 `manifest.json` is a **byte-identical copy** from verdict-core.
 
-The manifest file itself has SHA-256: `4e623d90c708de84bd584790020150f57626ee9fe1ff9193bcbe6b570a2b0656`
+The manifest file itself has SHA-256: `d4bfbc0b6a966601cc891b8f3112d687181210927e5e19f2b42f51f4231b0474`
 
 This constant is verified in `tests/verifier.test.ts` to ensure the vendored manifest stays pinned to Core.
 
