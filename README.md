@@ -11,7 +11,7 @@
 
 ## ExecutionEnvelope Verification
 
-This package includes canonical ExecutionEnvelope v1 verification following the [verdict-core contract specification](https://github.com/mrnicholasbcarter-code/verdict-core/blob/80ebaf23278473bb48bde807c1c3867e980a6e14/docs/contracts/EXECUTION_ENVELOPE_V1.md).
+This package includes canonical ExecutionEnvelope v1 verification following the [verdict-core contract specification](https://github.com/mrnicholasbcarter-code/verdict-core/blob/15d1f8f9edcd37250655331a425a07d5767a98eb/docs/contracts/EXECUTION_ENVELOPE_V1.md).
 
 ### Verification Rules
 
@@ -47,7 +47,7 @@ if (verdict === EnvelopeVerdict.ACCEPT) {
 
 ### Canonical Fixtures
 
-The package vendors canonical test fixtures from verdict-core at SHA `80ebaf23278473bb48bde807c1c3867e980a6e14`.
+The package vendors canonical test fixtures from verdict-core at SHA `15d1f8f9edcd37250655331a425a07d5767a98eb`.
 
 See `contracts/fixtures/execution-envelope/v1/README.md` for details.
 
@@ -96,17 +96,7 @@ behind an install fallback.
 
 ## Install
 
-> **Registry version lags this branch.** The only published release, `0.1.0`
-> (npm, 2026-07-26), predates execution-envelope enforcement, the
-> `createNextApiHandler` export, and the fail-closed handler fix. The behavior
-> in this README requires a build from source until a new version is
-> released:
->
-> ```bash
-> git clone https://github.com/mrnicholasbcarter-code/verdict-node.git
-> cd verdict-node && npm ci && npm run build
-> npm install /path/to/verdict-node   # from your application
-> ```
+> **Current published version: 0.2.0** (2026-09-26). Install from npm; build from source only if you need unreleased changes.
 
 ```bash
 npm install @bodanglin/verdict-node
@@ -264,6 +254,7 @@ npm run verify:package
 verdict-node/
 ├── src/
 │   ├── index.ts                         # Gateway and Next.js exports
+│   ├── verifier.ts                      # ExecutionEnvelope v1 verifier
 │   ├── adapters/
 │   │   └── contract-to-middleware.ts    # Canonical-decision adapter
 │   └── middleware/
@@ -286,7 +277,7 @@ verdict-node/
 | `@bodanglin/verdict-node`                                                        | Express/Next.js middleware (this repo)                                                                               |
 | [`verdict-cockpit`](https://github.com/mrnicholasbcarter-code/verdict-cockpit)   | Next.js dashboard                                                                                                    |
 | [`verdict-risk`](https://github.com/mrnicholasbcarter-code/verdict-risk)         | Risk engine                                                                                                          |
-| [`verdict-edge`](https://github.com/mrnicholasbcarter-code/verdict-strategy)     | Edge mining framework                                                                                                |
+| [`verdict-strategy`](https://github.com/mrnicholasbcarter-code/verdict-strategy) | Signal feature evaluator                                                                                             |
 | [`verdict-backtest`](https://github.com/mrnicholasbcarter-code/verdict-backtest) | Monte Carlo harness                                                                                                  |
 | OmniRoute                                                                        | Per OmniRoute's own description: 250+ providers, 90+ free tiers (third-party claim, not verified by this repository) |
 

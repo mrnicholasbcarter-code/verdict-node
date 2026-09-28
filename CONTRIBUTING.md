@@ -4,7 +4,7 @@ Thank you for helping. This is an **alpha** TypeScript package. Verdict Core mak
 
 ## Setup
 
-Node.js 24 (CI) and npm. Install and verify:
+Node.js 20, 22, or 24 (all tested in CI) and npm. Install and verify:
 
 ```bash
 npm ci
