@@ -55,7 +55,7 @@ See `contracts/fixtures/execution-envelope/v1/README.md` for details.
 
 `@bodanglin/verdict-node` is a TypeScript middleware library for Express and Next.js. In plain terms, it sits in front of your app's calls to an OpenAI-compatible API and checks each request before it goes out — it does not decide what is allowed; that is the job of **Verdict Core** (the Python control plane). This package's job is to enforce Core's decision at the HTTP edge: **core decides, node enforces**.
 
-The mechanism it enforces against is called an `ExecutionEnvelope` — plain-language: a signed record of what Core has authorized for a given request. By default, the standalone Express forwarder rejects a request outright ("fail-closed") if it arrives without a valid envelope or fails a policy check. The canonical cross-language contract for that envelope between Core (Python) and Node (TypeScript) is **still being reconciled**, so this alpha must not be represented as complete end-to-end policy enforcement yet. Node also retains its own local classification, discovery, ranking, and fallback behavior for compatibility routing; those heuristics are separate from, and not a substitute for, Core's authorization.
+The mechanism it enforces against is called an `ExecutionEnvelope` — plain-language: a signed record of what Core has authorized for a given request. By default, the standalone Express forwarder rejects a request outright ("fail-closed") if it arrives without a valid envelope or fails a policy check. ExecutionEnvelope v1 schemas are published in `@bodanglin/verdict-contracts` 0.3.0 and shared fixtures exist; issuance-to-enforcement parity remains alpha/partial. Node also retains its own local classification, discovery, ranking, and fallback behavior for compatibility routing; those heuristics are separate from, and not a substitute for, Core's authorization.
 
 **Works with any OpenAI-compatible client**: Claude Code, Codex, Cursor, Cline, Hermes, Agents SDK, raw HTTP.
 
@@ -218,9 +218,9 @@ import type {
 
 ## Integration with Verdict Core
 
-Verdict Core is the intended authority for policy-gated execution; Node is an edge and transport adapter. Core and Node do not yet share a fully reconciled, published `ExecutionEnvelope` contract or verified issuance-to-enforcement fixture. Until that work is complete, treat the envelope support here as partial enforcement rather than proof of end-to-end Core authorization.
+Verdict Core is the intended authority for policy-gated execution; Node is an edge and transport adapter. ExecutionEnvelope v1 schemas are published in `@bodanglin/verdict-contracts` 0.3.0 and shared fixtures exist; issuance-to-enforcement parity remains alpha/partial. Treat the envelope support here as partial enforcement rather than proof of end-to-end Core authorization.
 
-For the higher-level gateway, point `decisionEndpoint` (or `VERDICT_CORE_DECISION_ENDPOINT`) at the Core routing-decision endpoint. The standalone forwarder instead accepts an envelope through `ForwarderConfig.executionEnvelope` and requires one by default. Both APIs expose explicit compatibility opt-outs; those modes are not policy-gated execution. `createNextApiHandler` is fail-closed after a refusal (see above). End-to-end parity still needs shared Core fixtures and a published, reconciled `ExecutionEnvelope` contract; see [ADR-001](docs/adr/ADR-001-execution-envelope-enforcement.md).
+For the higher-level gateway, point `decisionEndpoint` (or `VERDICT_CORE_DECISION_ENDPOINT`) at the Core routing-decision endpoint. The standalone forwarder instead accepts an envelope through `ForwarderConfig.executionEnvelope` and requires one by default. Both APIs expose explicit compatibility opt-outs; those modes are not policy-gated execution. `createNextApiHandler` is fail-closed after a refusal (see above). End-to-end parity still needs complete issuance-to-enforcement coverage across Core fixtures; see [ADR-001](docs/adr/ADR-001-execution-envelope-enforcement.md).
 
 ---
 
